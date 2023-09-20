@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -17,14 +18,11 @@ import (
 	"github.com/samber/lo"
 )
 
-var (
-	REQUESTTHROTTLE = 2
-)
-
 func cronDaily(app *pocketbase.PocketBase) error {
 	scheduler := cron.New()
 
-	err := scheduler.Add("daily", "*/1 * * * *", func() {
+	// Every week Mon-Fri at 00:00
+	err := scheduler.Add("daily", "0 0 * * *", func() {
 		dailyCronJob(app)
 	})
 
@@ -72,20 +70,20 @@ func dailyCronJob(app *pocketbase.PocketBase) {
 	// 3. Concurrently request all stocks for latest daily.
 	// ---------------------------------------------------
 	// 3.1 Build all urls into chan urls.
-	numJobs := 10
-	// numJobs := len(codes)
+	numJobs := len(codes)
 	urls := make(chan string, numJobs)
 	results := make(chan string, numJobs)
 
 	today := time.Now()
-	pastXDays := 10
+	pastXDays := 3
 	fiveDaysAgo := today.AddDate(0, 0, -pastXDays).Format("20060102")
-	// 3.2 Fire off 5 workers to request daily.
-	numWorkers := 5
+
+	// 3.2 Fire off workers to request daily.
+	numWorkers := 3
 	for w := 1; w <= numWorkers; w++ {
 		go requestWorker(w, urls, results)
 	}
-	for _, code := range codes[:numJobs] {
+	for _, code := range codes {
 		urls <- fmt.Sprintf(
 			"https://54.push2his.eastmoney.com/api/qt/stock/kline/get?"+
 				"cb=jQuery35106707668456928451_1695010059469"+
@@ -221,7 +219,7 @@ func dailyCronJob(app *pocketbase.PocketBase) {
 
 func requestWorker(id int, urls <-chan string, results chan<- string) {
 	for url := range urls {
-		time.Sleep(time.Second * time.Duration(REQUESTTHROTTLE))
+		time.Sleep(time.Second * time.Duration(rand.Intn(3)+1))
 		log.Println("worker", id, "started")
 		resp, err := http.Get(url) //nolint:gosec,noctx // just ignore
 		if err != nil {
