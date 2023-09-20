@@ -32,7 +32,12 @@ func main() {
 	// Daily price and alert update.
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
 		err := cronDaily(app)
-		return err
+		if err != nil {
+			log.Println("error in hooking cronDaily: ", err)
+			return err
+		}
+
+		return nil
 	})
 
 	if err := app.Start(); err != nil {

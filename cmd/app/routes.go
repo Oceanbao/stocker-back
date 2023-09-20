@@ -13,7 +13,6 @@ func routeHello(e *core.ServeEvent) {
 
 		return c.JSON(http.StatusOK, map[string]string{"message": "Hello" + name})
 	} /* optional middlewares */)
-
 }
 
 // e.Router.POST("/upload", func(c echo.Context) error {

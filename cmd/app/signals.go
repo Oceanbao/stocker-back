@@ -13,59 +13,56 @@ func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) {
 	return indicator.DefaultKdj(high, low, closing)
 }
 
-func RSI(period int, closing []float64) ([]float64, []float64) {
+func RSI(closing []float64) ([]float64, []float64) {
 	rsi := make([]float64, len(closing))
-	diff := make([]float64, len(closing))
 	gains := make([]float64, len(closing))
 	losses := make([]float64, len(closing))
 
-	for idx := range closing {
-		if idx == 0 {
-			diff[idx] = 0
-			continue
-		}
-		percentDelta := (closing[idx] - closing[idx-1]) / closing[idx-1]
-		diff[idx] = percentDelta
-	}
+	var rsGain float64
+	var rsLoss float64
 
-	for idx, val := range diff {
+	for idx := range closing {
 		if idx == 0 {
 			gains[idx] = 0
 			losses[idx] = 0
-			continue
-		}
-		if val > 0 {
-			gains[idx] = val
-			losses[idx] = 0
-		} else {
-			gains[idx] = 0
-			losses[idx] = -val
-		}
-	}
-
-	for idx := range closing {
-		if idx >= period {
-			avgGain := sumT(gains[idx-period+1:idx+1]) / float64(period)
-			avgLoss := sumT(losses[idx-period+1:idx+1]) / float64(period)
-			rs := avgGain / avgLoss
-			rsi[idx] = HUNDRED - (HUNDRED / (1 + rs))
-		} else {
 			rsi[idx] = 0
+			rsGain = 0.0
+			rsLoss = 0.0
+			continue
 		}
+		diff := closing[idx] - closing[idx-1]
+		if diff > 0 {
+			gains[idx] = diff
+			losses[idx] = 0
+		} else {
+			gains[idx] = 0
+			losses[idx] = -diff
+		}
+
+		rsGain = (rsGain*5.0 + gains[idx]) / 6.0
+		rsLoss = (rsLoss*5.0 + losses[idx]) / 6.0
+
+		if rsGain == 0.0 || rsLoss == 0.0 {
+			rsi[idx] = 0.0
+			continue
+		}
+
+		rs := rsGain / rsLoss
+		rsi[idx] = (rs / (1.0 + rs)) * 100.0
 	}
 
-	sma := SMA(period, rsi)
+	sma := SMA(6, rsi)
 
 	return rsi, sma
 }
 
-func sumT[T int | float64](i []T) T {
-	var o T
-	for _, v := range i {
-		o += v
-	}
-	return o
-}
+// func sumT[T int | float64](i []T) T {
+// 	var o T
+// 	for _, v := range i {
+// 		o += v
+// 	}
+// 	return o
+// }
 
 // Simple Moving Average (SMA).
 func SMA(period int, values []float64) []float64 {
