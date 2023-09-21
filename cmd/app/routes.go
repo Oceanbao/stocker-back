@@ -1,17 +1,68 @@
 package main
 
 import (
+	"log"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v5"
+	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/daos"
 )
 
-func routeHello(e *core.ServeEvent) {
-	e.Router.GET("/dele/:name", func(c echo.Context) error {
-		name := c.PathParam("name")
+func routeDele(e *core.ServeEvent, app *pocketbase.PocketBase) {
+	e.Router.GET("/dele/:key", func(c echo.Context) error {
+		keyStored := "WoaiYLY1314"
+		if key := c.PathParam("key"); key != keyStored {
+			return c.JSON(http.StatusForbidden, map[string]string{"message": "Not allowed."})
+		}
 
-		return c.JSON(http.StatusOK, map[string]string{"message": "Hello" + name})
+		var err error
+		// 1. Update all `alert` records.
+		// 1.1 Get all `stocks` records.
+		var tempRecords = []struct {
+			ID   string `db:"id" json:"id"`
+			Code string `db:"code" json:"code"`
+			Name string `db:"name" json:"name"`
+			Cap  string `db:"cap" json:"cap"`
+		}{}
+		err = app.Dao().DB().
+			Select("id", "code", "name", "cap").
+			From("stocks").
+			All(&tempRecords)
+		if err != nil {
+			log.Println("error in reading database `stocks`")
+			return err
+		}
+		// 1.2 For each `alert` record, update its fields.
+		err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+			for _, x := range tempRecords {
+				record, err := app.Dao().FindRecordById("stocks", x.ID)
+				if err != nil {
+					log.Println("error in finding record in 'stocks': ", err)
+					return err
+				}
+
+				codeNew := x.Code
+				codeNew = strings.ReplaceAll(codeNew, "sh", "1.")
+				codeNew = strings.ReplaceAll(codeNew, "sz", "0.")
+				record.Set("code", codeNew)
+
+				if err = txDao.SaveRecord(record); err != nil {
+					log.Println("error in updating record: ", x.Code, err)
+					return err
+				}
+			}
+
+			return nil
+		})
+		if err != nil {
+			log.Println("error in transaction of updating stocks records: ", err)
+			return err
+		}
+
+		return c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 	} /* optional middlewares */)
 }
 

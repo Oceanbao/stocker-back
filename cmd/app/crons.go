@@ -22,6 +22,7 @@ func cronDaily(app *pocketbase.PocketBase) error {
 	scheduler := cron.New()
 
 	// Every week Mon-Fri at 00:00
+	// err := scheduler.Add("daily", "*/1 * * * *", func() {
 	err := scheduler.Add("daily", "0 0 * * *", func() {
 		dailyCronJob(app)
 	})
@@ -58,19 +59,11 @@ func dailyCronJob(app *pocketbase.PocketBase) {
 		return
 	}
 
-	// 2. Correct code name to `x.xxxxxx` format.
-	// ---------------------------------------------------
-	codes := make([]string, len(tempStocks))
-	for idx, x := range tempStocks {
-		codeNew := strings.ReplaceAll(x.Code, "sh", "1.")
-		codeNew = strings.ReplaceAll(codeNew, "sz", "0.")
-		codes[idx] = codeNew
-	}
-
 	// 3. Concurrently request all stocks for latest daily.
 	// ---------------------------------------------------
 	// 3.1 Build all urls into chan urls.
-	numJobs := len(codes)
+	// numJobs := len(codes)
+	numJobs := 10
 	urls := make(chan string, numJobs)
 	results := make(chan string, numJobs)
 
@@ -83,7 +76,7 @@ func dailyCronJob(app *pocketbase.PocketBase) {
 	for w := 1; w <= numWorkers; w++ {
 		go requestWorker(w, urls, results)
 	}
-	for _, code := range codes {
+	for _, code := range tempStocks[:numJobs] {
 		urls <- fmt.Sprintf(
 			"https://54.push2his.eastmoney.com/api/qt/stock/kline/get?"+
 				"cb=jQuery35106707668456928451_1695010059469"+
@@ -165,32 +158,40 @@ func dailyCronJob(app *pocketbase.PocketBase) {
 	groupedDaily := lo.GroupBy(tempDaily, func(d dailyRecord) string {
 		return d.Code
 	})
-	// for k, v := range groupedDaily {
-	// 	log.Println("groupedDaily[0]: ", k, v)
-	// 	break
-	// }
 
 	// 3.5 For each, compute RSI and KDJ.
 	tempAlertUpsert := make([]struct {
 		Code string
 		Rsi  float64
+		Name string
+		Cap  float64
 	}, len(groupedDaily))
 	tempCounter := 0
 	for k, v := range groupedDaily {
 		rsi, _ := RSI(lo.Map(v, func(d dailyRecord, _ int) float64 {
 			return d.Close
 		}))
+		// Get "name" and "cap" from `stocks`.
+		record, err := app.Dao().FindFirstRecordByData("stocks", "code", k)
+		if err != nil {
+			log.Println("error in finding record in 'stocks': ", err)
+			return
+		}
 		tempAlertUpsert[tempCounter] = struct {
 			Code string
 			Rsi  float64
+			Name string
+			Cap  float64
 		}{
 			k,
 			rsi[len(rsi)-1],
+			record.Get("name").(string),
+			record.Get("cap").(float64),
 		}
 		tempCounter++
 	}
 
-	// 3.6 Check for target, insert into `alert` (code, rsi).
+	// 3.6 Check for target, insert into `alert` (code, rsi, name, cap).
 	collection, err = app.Dao().FindCollectionByNameOrId("alert")
 	if err != nil {
 		log.Println("error in finding collection 'alert': ", err)
@@ -202,6 +203,8 @@ func dailyCronJob(app *pocketbase.PocketBase) {
 			record.Load(map[string]any{
 				"code": x.Code,
 				"rsi":  x.Rsi,
+				"name": x.Name,
+				"cap":  x.Cap,
 			})
 
 			if err = txDao.SaveRecord(record); err != nil {

@@ -23,7 +23,7 @@ func main() {
 
 	// ----------------- Route ----------------------
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
-		routeHello(e)
+		routeDele(e, app)
 
 		return nil
 	})
