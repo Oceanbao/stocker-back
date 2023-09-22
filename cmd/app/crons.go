@@ -62,8 +62,7 @@ func dailyCronJob(app *pocketbase.PocketBase) {
 	// 3. Concurrently request all stocks for latest daily.
 	// ---------------------------------------------------
 	// 3.1 Build all urls into chan urls.
-	// numJobs := len(codes)
-	numJobs := 10
+	numJobs := len(tempStocks)
 	urls := make(chan string, numJobs)
 	results := make(chan string, numJobs)
 
@@ -76,7 +75,7 @@ func dailyCronJob(app *pocketbase.PocketBase) {
 	for w := 1; w <= numWorkers; w++ {
 		go requestWorker(w, urls, results)
 	}
-	for _, code := range tempStocks[:numJobs] {
+	for _, code := range tempStocks {
 		urls <- fmt.Sprintf(
 			"https://54.push2his.eastmoney.com/api/qt/stock/kline/get?"+
 				"cb=jQuery35106707668456928451_1695010059469"+
