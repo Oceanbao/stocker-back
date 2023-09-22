@@ -14,6 +14,8 @@ func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) {
 }
 
 func RSI(closing []float64) ([]float64, []float64) {
+	period := 6
+	pastAvgPeriod := period - 1
 	rsi := make([]float64, len(closing))
 	gains := make([]float64, len(closing))
 	losses := make([]float64, len(closing))
@@ -39,8 +41,8 @@ func RSI(closing []float64) ([]float64, []float64) {
 			losses[idx] = -diff
 		}
 
-		rsGain = (rsGain*5.0 + gains[idx]) / 6.0
-		rsLoss = (rsLoss*5.0 + losses[idx]) / 6.0
+		rsGain = (rsGain*float64(pastAvgPeriod) + gains[idx]) / float64(period)
+		rsLoss = (rsLoss*float64(pastAvgPeriod) + losses[idx]) / float64(period)
 
 		if rsGain == 0.0 || rsLoss == 0.0 {
 			rsi[idx] = 0.0
@@ -48,10 +50,10 @@ func RSI(closing []float64) ([]float64, []float64) {
 		}
 
 		rs := rsGain / rsLoss
-		rsi[idx] = (rs / (1.0 + rs)) * 100.0
+		rsi[idx] = (rs / (1.0 + rs)) * float64(HUNDRED)
 	}
 
-	sma := SMA(6, rsi)
+	sma := SMA(period, rsi)
 
 	return rsi, sma
 }

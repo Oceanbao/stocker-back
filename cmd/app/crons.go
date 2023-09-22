@@ -37,7 +37,7 @@ func cronDaily(app *pocketbase.PocketBase) error {
 	return nil
 }
 
-func dailyCronJob(app *pocketbase.PocketBase) {
+func dailyCronJob(app *pocketbase.PocketBase) { //nolint:funlen,gocognit // ignore for now
 	// 0. Clear entire collection of `alert`.
 	// ---------------------------------------------------
 	err := clearCollection(app, "alert")
@@ -171,8 +171,8 @@ func dailyCronJob(app *pocketbase.PocketBase) {
 			return d.Close
 		}))
 		// Get "name" and "cap" from `stocks`.
-		record, err := app.Dao().FindFirstRecordByData("stocks", "code", k)
-		if err != nil {
+		record, errGetStockCode := app.Dao().FindFirstRecordByData("stocks", "code", k)
+		if errGetStockCode != nil {
 			log.Println("error in finding record in 'stocks': ", err)
 			return
 		}
@@ -221,7 +221,8 @@ func dailyCronJob(app *pocketbase.PocketBase) {
 
 func requestWorker(id int, urls <-chan string, results chan<- string) {
 	for url := range urls {
-		time.Sleep(time.Second * time.Duration(rand.Intn(3)+1))
+		sleepSecond := 3
+		time.Sleep(time.Second * time.Duration(rand.Intn(sleepSecond)+1)) //nolint:gosec // no need
 		log.Println("worker", id, "started")
 		resp, err := http.Get(url) //nolint:gosec,noctx // just ignore
 		if err != nil {

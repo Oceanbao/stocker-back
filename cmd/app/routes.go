@@ -38,10 +38,10 @@ func routeDele(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		// 1.2 For each `alert` record, update its fields.
 		err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
 			for _, x := range tempRecords {
-				record, err := app.Dao().FindRecordById("stocks", x.ID)
-				if err != nil {
-					log.Println("error in finding record in 'stocks': ", err)
-					return err
+				record, errFindStockByID := app.Dao().FindRecordById("stocks", x.ID)
+				if errFindStockByID != nil {
+					log.Println("error in finding record in 'stocks': ", errFindStockByID)
+					return errFindStockByID
 				}
 
 				codeNew := x.Code
