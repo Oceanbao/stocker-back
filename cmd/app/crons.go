@@ -67,7 +67,7 @@ func dailyCronJob(app *pocketbase.PocketBase) { //nolint:funlen,gocognit // igno
 	results := make(chan string, numJobs)
 
 	today := time.Now()
-	pastXDays := 3
+	pastXDays := 7
 	fiveDaysAgo := today.AddDate(0, 0, -pastXDays).Format("20060102")
 
 	// 3.2 Fire off workers to request daily.
@@ -75,8 +75,8 @@ func dailyCronJob(app *pocketbase.PocketBase) { //nolint:funlen,gocognit // igno
 	for w := 1; w <= numWorkers; w++ {
 		go requestWorker(w, urls, results)
 	}
-	for _, code := range tempStocks {
-		urls <- fmt.Sprintf(
+	for _, x := range tempStocks {
+		url := fmt.Sprintf(
 			"https://54.push2his.eastmoney.com/api/qt/stock/kline/get?"+
 				"cb=jQuery35106707668456928451_1695010059469"+
 				"&secid=%s"+
@@ -85,8 +85,9 @@ func dailyCronJob(app *pocketbase.PocketBase) { //nolint:funlen,gocognit // igno
 				"&fields2=f51%%2Cf52%%2Cf53%%2Cf54%%2Cf55%%2Cf56%%2Cf57%%2Cf58%%2Cf59%%2Cf60%%2Cf61"+
 				"&klt=101&fqt=1"+
 				"&beg=%s&end=20500101"+
-				"&lmt=10&_=1695010059524", code, fiveDaysAgo,
+				"&lmt=10&_=1695010059524", x.Code, fiveDaysAgo,
 		)
+		urls <- url
 	}
 	close(urls)
 
@@ -119,15 +120,16 @@ func dailyCronJob(app *pocketbase.PocketBase) { //nolint:funlen,gocognit // igno
 		for _, x := range validResults {
 			for _, entry := range x.Data.Klines {
 				parts := strings.Split(entry, ",")
-				record := models.NewRecord(collection)
-				record.Load(map[string]any{
+				dataToEnter := map[string]any{
 					"code":  fmt.Sprintf("%d.%s", x.Data.Market, x.Data.Code),
 					"date":  parts[0],
 					"open":  parts[1],
 					"high":  parts[3],
 					"low":   parts[4],
 					"close": parts[2],
-				})
+				}
+				record := models.NewRecord(collection)
+				record.Load(dataToEnter)
 
 				if err = txDao.SaveRecord(record); err != nil {
 					log.Println("error in writing record: ", x.Data.Code, parts[0], err)
@@ -276,7 +278,8 @@ func clearCollection(app *pocketbase.PocketBase, collection string) error {
 			record, errFindRecord := app.Dao().FindRecordById(collection, x.ID)
 			if errFindRecord != nil {
 				// Quite possible this is unlikely, so ignore.
-				return fmt.Errorf("error in finding record by ID: %s", x.ID)
+				// return fmt.Errorf("error in finding record by ID: %s", x.ID)
+				return nil
 			}
 			if err = txDao.DeleteRecord(record); err != nil {
 				return fmt.Errorf("error in deleting record with ID: %s", x.ID)
