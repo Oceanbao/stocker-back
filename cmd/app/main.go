@@ -2,10 +2,12 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"log"
 
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/cron"
 )
 
 type dailyRecord struct {
@@ -29,13 +31,28 @@ func main() {
 	})
 
 	// ----------------- Cron ----------------------
-	// Daily price and alert update.
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
-		err := cronDaily(app)
+		scheduler := cron.New()
+
+		// Every week Mon-Fri at 00:00
+		// err := scheduler.Add("daily", "*/1 * * * *", func() {
+		err := scheduler.Add("daily", "0 0 * * *", func() {
+			cronDailyPriceUpdate(app)
+		})
 		if err != nil {
-			log.Println("error in hooking cronDaily: ", err)
-			return err
+			return fmt.Errorf("error in adding cron job `dailyPrice`: %w", err)
 		}
+
+		// Every week Mon-Fri at 00:00
+		// err = scheduler.Add("daily", "*/1 * * * *", func() {
+		err = scheduler.Add("daily", "0 0 * * *", func() {
+			cronDailyTrackUpdate(app)
+		})
+		if err != nil {
+			return fmt.Errorf("error in adding cron job `track`: %w", err)
+		}
+
+		scheduler.Start()
 
 		return nil
 	})

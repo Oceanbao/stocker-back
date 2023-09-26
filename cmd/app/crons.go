@@ -14,30 +14,13 @@ import (
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/daos"
 	"github.com/pocketbase/pocketbase/models"
-	"github.com/pocketbase/pocketbase/tools/cron"
 	"github.com/samber/lo"
 )
 
-func cronDaily(app *pocketbase.PocketBase) error {
-	scheduler := cron.New()
+const DefaultDateLayout = "2006-01-02 15:04:05.000Z"
+const HoursPerDay = 24
 
-	// Every week Mon-Fri at 00:00
-	// err := scheduler.Add("daily", "*/1 * * * *", func() {
-	err := scheduler.Add("daily", "0 0 * * *", func() {
-		dailyCronJob(app)
-	})
-
-	if err != nil {
-		log.Println("ERR: cron job `daily`")
-		return err
-	}
-
-	scheduler.Start()
-
-	return nil
-}
-
-func dailyCronJob(app *pocketbase.PocketBase) { //nolint:funlen,gocognit // ignore for now
+func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit // ignore for now
 	// 0. Clear entire collection of `alert`.
 	// ---------------------------------------------------
 	err := clearCollection(app, "alert")
@@ -279,7 +262,7 @@ func clearCollection(app *pocketbase.PocketBase, collection string) error {
 			if errFindRecord != nil {
 				// Quite possible this is unlikely, so ignore.
 				// return fmt.Errorf("error in finding record by ID: %s", x.ID)
-				return nil
+				return errFindRecord
 			}
 			if err = txDao.DeleteRecord(record); err != nil {
 				return fmt.Errorf("error in deleting record with ID: %s", x.ID)
@@ -293,4 +276,68 @@ func clearCollection(app *pocketbase.PocketBase, collection string) error {
 	}
 
 	return nil
+}
+
+func cronDailyTrackUpdate(app *pocketbase.PocketBase) {
+	// Collection `track`: 'code, name, started, days, change'.
+	// When front create new record, the latter 3 fields are set to zero value.
+	// 1. Get all records.
+	var tempRecords = []struct {
+		ID      string `db:"id" json:"id"`
+		Code    string `db:"code" json:"code"`
+		Name    string `db:"name" json:"name"`
+		Started string `db:"started" json:"started"`
+		Days    string `db:"days" json:"days"`
+		Change  string `db:"change" json:"change"`
+	}{}
+	err := app.Dao().DB().
+		Select("id", "code", "name", "started", "days", "change").
+		From("track").
+		All(&tempRecords)
+	if err != nil {
+		log.Println("error in getting all records from database `track`")
+		return
+	}
+	if len(tempRecords) == 0 {
+		log.Println("no record in collection `track`, skip cron job.")
+		return
+	}
+
+	err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+		for _, x := range tempRecords {
+			filter := fmt.Sprintf("code = '%s' && date > '%s'", x.Code, x.Started)
+			recordsDaily, errFindDailyByDate := app.Dao().FindRecordsByFilter("daily", filter, "date", -1, 0)
+			if errFindDailyByDate != nil {
+				return fmt.Errorf("error in finding record in `daily`: %w", errFindDailyByDate)
+			}
+
+			dateStarted, errParseTime := time.Parse(DefaultDateLayout, x.Started)
+			if errParseTime != nil {
+				return fmt.Errorf("error in parsing started time: %w", errParseTime)
+			}
+
+			daysPast := int(time.Since(dateStarted).Hours() / float64(HoursPerDay))
+			priceLatest := recordsDaily[len(recordsDaily)-1].Get("close").(float64) //nolint: errcheck //what
+			priceStarted := recordsDaily[0].Get("close").(float64)                  //nolint: errcheck  //what
+			change := (priceLatest - priceStarted) / priceStarted
+
+			recordTrack, errFindTrackRecord := app.Dao().FindRecordById("track", x.ID)
+			if errFindTrackRecord != nil {
+				return fmt.Errorf("error in finding record in `track`: %w", errFindTrackRecord)
+			}
+
+			recordTrack.Set("days", daysPast)
+			recordTrack.Set("change", change)
+
+			if err = txDao.SaveRecord(recordTrack); err != nil {
+				return fmt.Errorf("error in updating record: %v (%w)", x.ID, err)
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		log.Println("error in transaction of updating stocks records: ", err)
+		return
+	}
 }
