@@ -45,12 +45,12 @@ func main() {
 
 		// Every week Mon-Fri at 00:00
 		// err = scheduler.Add("daily", "*/1 * * * *", func() {
-		err = scheduler.Add("daily", "0 0 * * *", func() {
-			cronDailyTrackUpdate(app)
-		})
-		if err != nil {
-			return fmt.Errorf("error in adding cron job `track`: %w", err)
-		}
+		// err = scheduler.Add("daily", "0 0 * * *", func() {
+		// cronDailyTrackUpdate(app)
+		// 	})
+		// 	if err != nil {
+		// 		return fmt.Errorf("error in adding cron job `track`: %w", err)
+		// 	}
 
 		scheduler.Start()
 
