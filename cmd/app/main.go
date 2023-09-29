@@ -25,7 +25,11 @@ func main() {
 
 	// ----------------- Route ----------------------
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
+		// Global middleware.
+		// e.Router.Use(apis.RequireRecordAuth("user"))
+
 		routeDele(e, app)
+		routeTrack(e, app)
 
 		return nil
 	})
@@ -42,15 +46,6 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("error in adding cron job `dailyPrice`: %w", err)
 		}
-
-		// Every week Mon-Fri at 00:00
-		// err = scheduler.Add("daily", "*/1 * * * *", func() {
-		// err = scheduler.Add("daily", "0 0 * * *", func() {
-		// cronDailyTrackUpdate(app)
-		// 	})
-		// 	if err != nil {
-		// 		return fmt.Errorf("error in adding cron job `track`: %w", err)
-		// 	}
 
 		scheduler.Start()
 

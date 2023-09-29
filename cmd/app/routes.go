@@ -1,68 +1,169 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/labstack/echo/v5"
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/daos"
 )
 
 func routeDele(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	e.Router.GET("/dele/:key", func(c echo.Context) error {
-		keyStored := "WoaiYLY1314"
-		if key := c.PathParam("key"); key != keyStored {
-			return c.JSON(http.StatusForbidden, map[string]string{"message": "Not allowed."})
-		}
+		key := c.PathParam("key")
 
-		var err error
 		// 1. Update all `alert` records.
 		// 1.1 Get all `stocks` records.
+		// var tempRecords = []struct {
+		// 	ID   string `db:"id" json:"id"`
+		// 	Code string `db:"code" json:"code"`
+		// 	Name string `db:"name" json:"name"`
+		// 	Cap  string `db:"cap" json:"cap"`
+		// }{}
+		// err = app.Dao().DB().
+		// 	Select("id", "code", "name", "cap").
+		// 	From("stocks").
+		// 	All(&tempRecords)
+		// if err != nil {
+		// 	log.Println("error in reading database `stocks`")
+		// 	return err
+		// }
+		// // 1.2 For each `alert` record, update its fields.
+		// err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+		// 	for _, x := range tempRecords {
+		// 		record, errFindStockByID := app.Dao().FindRecordById("stocks", x.ID)
+		// 		if errFindStockByID != nil {
+		// 			log.Println("error in finding record in 'stocks': ", errFindStockByID)
+		// 			return errFindStockByID
+		// 		}
+
+		// 		codeNew := x.Code
+		// 		codeNew = strings.ReplaceAll(codeNew, "sh", "1.")
+		// 		codeNew = strings.ReplaceAll(codeNew, "sz", "0.")
+		// 		record.Set("code", codeNew)
+
+		// 		if err = txDao.SaveRecord(record); err != nil {
+		// 			log.Println("error in updating record: ", x.Code, err)
+		// 			return err
+		// 		}
+		// 	}
+
+		// 	return nil
+		// })
+		// if err != nil {
+		// 	log.Println("error in transaction of updating stocks records: ", err)
+		// 	return err
+		// }
+
+		return c.JSON(http.StatusOK, map[string]string{"message": key})
+	} /* optional middlewares */)
+}
+
+func routeTrack(e *core.ServeEvent, app *pocketbase.PocketBase) {
+	e.Router.GET("/track", func(c echo.Context) error {
+		// 1. Get all records from Collection `track`: 'code, name, started'.
 		var tempRecords = []struct {
-			ID   string `db:"id" json:"id"`
-			Code string `db:"code" json:"code"`
-			Name string `db:"name" json:"name"`
-			Cap  string `db:"cap" json:"cap"`
+			ID      string `db:"id" json:"id"`
+			Code    string `db:"code" json:"code"`
+			Name    string `db:"name" json:"name"`
+			Started string `db:"started" json:"started"`
 		}{}
-		err = app.Dao().DB().
-			Select("id", "code", "name", "cap").
-			From("stocks").
+		err := app.Dao().DB().
+			Select("id", "code", "name", "started").
+			From("track").
 			All(&tempRecords)
 		if err != nil {
-			log.Println("error in reading database `stocks`")
-			return err
+			return c.JSON(500, map[string]string{"message": "error in getting all records from database `track`"})
 		}
-		// 1.2 For each `alert` record, update its fields.
-		err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
-			for _, x := range tempRecords {
-				record, errFindStockByID := app.Dao().FindRecordById("stocks", x.ID)
-				if errFindStockByID != nil {
-					log.Println("error in finding record in 'stocks': ", errFindStockByID)
-					return errFindStockByID
-				}
+		if len(tempRecords) == 0 {
+			return c.JSON(200, map[string]string{"message": "ok", "data": ""})
+		}
 
-				codeNew := x.Code
-				codeNew = strings.ReplaceAll(codeNew, "sh", "1.")
-				codeNew = strings.ReplaceAll(codeNew, "sz", "0.")
-				record.Set("code", codeNew)
+		var returnData = []struct {
+			Code    string `json:"code"`
+			Name    string `json:"name"`
+			Started string `json:"started"`
+			Records []dailyRecord
+		}{}
 
-				if err = txDao.SaveRecord(record); err != nil {
-					log.Println("error in updating record: ", x.Code, err)
-					return err
-				}
+		for _, d := range tempRecords {
+			var tempDaily []dailyRecord
+			err = app.Dao().DB().
+				Select("code", "date", "open", "high", "low", "close").
+				From("daily").
+				Where(dbx.NewExp(fmt.Sprintf("code = \"%s\" AND date >= \"%s\"", d.Code, d.Started))).
+				OrderBy("date ASC").
+				All(&tempDaily)
+			if err != nil {
+				log.Println("error in reading daily collection: ", err)
+				continue
 			}
-
-			return nil
-		})
-		if err != nil {
-			log.Println("error in transaction of updating stocks records: ", err)
-			return err
+			returnData = append(returnData, struct {
+				Code    string `json:"code"`
+				Name    string `json:"name"`
+				Started string `json:"started"`
+				Records []dailyRecord
+			}{
+				Code:    d.Code,
+				Name:    d.Name,
+				Started: d.Started,
+				Records: tempDaily,
+			})
 		}
 
-		return c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+		return c.JSON(200, map[string]any{"message": "ok", "data": returnData})
+
+		// if key := c.PathParam("key"); key != keyStored {
+		// 	return c.JSON(http.StatusForbidden, map[string]string{"message": "Not allowed."})
+		// }
+
+		// var err error
+		// // 1. Update all `alert` records.
+		// // 1.1 Get all `stocks` records.
+		// var tempRecords = []struct {
+		// 	ID   string `db:"id" json:"id"`
+		// 	Code string `db:"code" json:"code"`
+		// 	Name string `db:"name" json:"name"`
+		// 	Cap  string `db:"cap" json:"cap"`
+		// }{}
+		// err = app.Dao().DB().
+		// 	Select("id", "code", "name", "cap").
+		// 	From("stocks").
+		// 	All(&tempRecords)
+		// if err != nil {
+		// 	log.Println("error in reading database `stocks`")
+		// 	return err
+		// }
+		// // 1.2 For each `alert` record, update its fields.
+		// err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+		// 	for _, x := range tempRecords {
+		// 		record, errFindStockByID := app.Dao().FindRecordById("stocks", x.ID)
+		// 		if errFindStockByID != nil {
+		// 			log.Println("error in finding record in 'stocks': ", errFindStockByID)
+		// 			return errFindStockByID
+		// 		}
+
+		// 		codeNew := x.Code
+		// 		codeNew = strings.ReplaceAll(codeNew, "sh", "1.")
+		// 		codeNew = strings.ReplaceAll(codeNew, "sz", "0.")
+		// 		record.Set("code", codeNew)
+
+		// 		if err = txDao.SaveRecord(record); err != nil {
+		// 			log.Println("error in updating record: ", x.Code, err)
+		// 			return err
+		// 		}
+		// 	}
+
+		// 	return nil
+		// })
+		// if err != nil {
+		// 	log.Println("error in transaction of updating stocks records: ", err)
+		// 	return err
+		// }
+
 	} /* optional middlewares */)
 }
 
