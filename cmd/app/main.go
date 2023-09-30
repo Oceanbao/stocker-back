@@ -28,7 +28,6 @@ func main() {
 		// Global middleware.
 		// e.Router.Use(apis.RequireRecordAuth("user"))
 
-		routeDele(e, app)
 		routeTrack(e, app)
 
 		return nil

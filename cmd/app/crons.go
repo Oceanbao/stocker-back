@@ -50,7 +50,7 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 	results := make(chan string, numJobs)
 
 	today := time.Now()
-	pastXDays := 7
+	pastXDays := 14
 	fiveDaysAgo := today.AddDate(0, 0, -pastXDays).Format("20060102")
 
 	// 3.2 Fire off workers to request daily.
@@ -80,18 +80,24 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 	}
 	close(results)
 
+	// Extract the valid results.
+	outputValid := make([]string, 0)
+	for _, v := range output {
+		if !strings.HasPrefix(v, "fail") {
+			outputValid = append(outputValid, v)
+		}
+	}
+
 	// 3.3 Check results and write to `daily` collection.
 	validResults := make([]struct {
-		Data struct {
-			Code   string
-			Market int
-			Klines []string
-		}
+		Code   string
+		Market int
+		Klines []string
 	}, len(output))
-	for idx, x := range output {
+	for idx, x := range outputValid {
 		if err = json.Unmarshal([]byte(x), &validResults[idx]); err != nil {
 			log.Println("error in unmarshalling json: ", err)
-			return
+			continue
 		}
 	}
 	collection, err := app.Dao().FindCollectionByNameOrId("daily")
@@ -101,10 +107,13 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 	}
 	err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
 		for _, x := range validResults {
-			for _, entry := range x.Data.Klines {
+			if x.Klines == nil {
+				continue
+			}
+			for _, entry := range x.Klines {
 				parts := strings.Split(entry, ",")
 				dataToEnter := map[string]any{
-					"code":  fmt.Sprintf("%d.%s", x.Data.Market, x.Data.Code),
+					"code":  fmt.Sprintf("%d.%s", x.Market, x.Code),
 					"date":  parts[0],
 					"open":  parts[1],
 					"high":  parts[3],
@@ -115,7 +124,7 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 				record.Load(dataToEnter)
 
 				if err = txDao.SaveRecord(record); err != nil {
-					log.Println("error in writing record: ", x.Data.Code, parts[0], err)
+					log.Println("error in writing record: ", x.Code, parts[0], err)
 				}
 			}
 		}
@@ -143,16 +152,35 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 		return d.Code
 	})
 
-	// 3.5 For each, compute RSI and KDJ.
+	// 3.5 For each, compute RSI and KDJ and MACD.
 	tempAlertUpsert := make([]struct {
 		Code string
 		Rsi  float64
+		K    float64
+		D    float64
+		J    float64
+		Diff float64
+		Dea  float64
 		Name string
 		Cap  float64
 	}, len(groupedDaily))
 	tempCounter := 0
-	for k, v := range groupedDaily {
+	for code, v := range groupedDaily {
 		rsi, _ := RSI(lo.Map(v, func(d dailyRecord, _ int) float64 {
+			return d.Close
+		}))
+		k, d, j := KDJ(
+			lo.Map(v, func(d dailyRecord, _ int) float64 {
+				return d.High
+			}),
+			lo.Map(v, func(d dailyRecord, _ int) float64 {
+				return d.Low
+			}),
+			lo.Map(v, func(d dailyRecord, _ int) float64 {
+				return d.Close
+			}),
+		)
+		diff, dea := MACD(lo.Map(v, func(d dailyRecord, _ int) float64 {
 			return d.Close
 		}))
 		// Get "name" and "cap" from `stocks`.
@@ -164,11 +192,21 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 		tempAlertUpsert[tempCounter] = struct {
 			Code string
 			Rsi  float64
+			K    float64
+			D    float64
+			J    float64
+			Diff float64
+			Dea  float64
 			Name string
 			Cap  float64
 		}{
-			k,
+			code,
 			rsi[len(rsi)-1],
+			k[len(k)-1],
+			d[len(d)-1],
+			j[len(j)-1],
+			diff[len(diff)-1],
+			dea[len(dea)-1],
 			record.Get("name").(string),
 			record.Get("cap").(float64),
 		}
@@ -186,9 +224,14 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 			record := models.NewRecord(collection)
 			record.Load(map[string]any{
 				"code": x.Code,
-				"rsi":  x.Rsi,
 				"name": x.Name,
 				"cap":  x.Cap,
+				"rsi":  x.Rsi,
+				"k":    x.K,
+				"d":    x.D,
+				"j":    x.J,
+				"diff": x.Diff,
+				"dea":  x.Dea,
 			})
 
 			if err = txDao.SaveRecord(record); err != nil {
@@ -209,22 +252,24 @@ func requestWorker(id int, urls <-chan string, results chan<- string) {
 		sleepSecond := 3
 		time.Sleep(time.Second * time.Duration(rand.Intn(sleepSecond)+1)) //nolint:gosec // no need
 		log.Println("worker", id, "started")
+
 		resp, err := http.Get(url) //nolint:gosec,noctx // just ignore
 		if err != nil {
-			results <- url
+			results <- fmt.Sprintf("fail: %v", err)
 			continue
 		}
+
 		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
-			results <- url
+			results <- fmt.Sprintf("fail: %v", err)
 			continue
 		}
+
 		bodyText := string(body)
 		meat := sliceStringByChar(bodyText, "(", ")")
-		log.Println("worker", id, "finished job")
+		log.Println("worker", id, "done")
 		results <- meat
-
-		resp.Body.Close()
 	}
 }
 

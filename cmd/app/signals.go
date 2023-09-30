@@ -1,16 +1,108 @@
 package main
 
-import "github.com/cinar/indicator"
-
 const HUNDRED = 100
 
 func MACD(closing []float64) ([]float64, []float64) {
-	macd, signal := indicator.Macd(closing)
-	return macd, signal
+	ema12 := make([]float64, 0)
+	ema26 := make([]float64, 0)
+	diff := make([]float64, 0)
+	dea := make([]float64, 0)
+
+	for idx, c := range closing {
+		if idx == 0 {
+			thisEma12 := (c*float64(11) + c*float64(2)) / float64(13)
+			thisEma26 := (c*float64(25) + c*float64(2)) / float64(27)
+			thisDiff := thisEma12 - thisEma26
+			thisDea := (thisDiff*float64(8) + thisDiff*float64(2)) / float64(10)
+
+			ema12 = append(ema12, thisEma12)
+			ema26 = append(ema26, thisEma26)
+			diff = append(diff, thisDiff)
+			dea = append(dea, thisDea)
+			continue
+		}
+
+		thisEma12 := (ema12[idx-1]*float64(11) + c*float64(2)) / float64(13)
+		thisEma26 := (ema26[idx-1]*float64(25) + c*float64(2)) / float64(27)
+		thisDiff := thisEma12 - thisEma26
+		thisDea := (dea[idx-1]*float64(8) + thisDiff*float64(2)) / float64(10)
+
+		ema12 = append(ema12, thisEma12)
+		ema26 = append(ema26, thisEma26)
+		diff = append(diff, thisDiff)
+		dea = append(dea, thisDea)
+	}
+
+	return diff, dea
 }
 
 func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) {
-	return indicator.DefaultKdj(high, low, closing)
+	allRSV := make([]float64, 0)
+	rsv := func(idx int) float64 {
+		getRange := func(input []float64) []float64 {
+			diff := idx + 1 - 9
+			var start int
+			if diff > 0 {
+				start = diff
+			} else {
+				start = 0
+			}
+			return input[start : idx+1]
+		}
+		reduceLowest := func(input []float64) float64 {
+			acc := float64(9999)
+			for _, v := range input {
+				if acc < v {
+					continue
+				}
+				acc = v
+			}
+			return acc
+		}
+		reduceHighest := func(input []float64) float64 {
+			acc := float64(-1)
+			for _, v := range input {
+				if acc > v {
+					continue
+				}
+				acc = v
+			}
+			return acc
+		}
+
+		C := closing[idx]
+		L := reduceLowest(getRange(low))
+		H := reduceHighest(getRange(high))
+
+		return ((C - L) / (H - L)) * float64(100)
+	}
+
+	for idx := range closing {
+		allRSV = append(allRSV, rsv(idx))
+	}
+
+	allK := make([]float64, 0)
+	allD := make([]float64, 0)
+	allJ := make([]float64, 0)
+
+	for idx, rsv := range allRSV {
+		if idx == 0 {
+			allK = append(allK, 50)
+			allD = append(allD, 50)
+			allJ = append(allJ, 50)
+			continue
+		}
+
+		thisK := (float64(2)*allK[idx-1] + rsv) / float64(3)
+		thisD := (float64(2)*allD[idx-1] + thisK) / float64(3)
+		thisJ := float64(3)*thisK - float64(2)*thisD
+
+		allK = append(allK, thisK)
+		allD = append(allD, thisD)
+		allJ = append(allJ, thisJ)
+	}
+
+	return allK, allD, allJ
 }
 
 func RSI(closing []float64) ([]float64, []float64) {
@@ -58,29 +150,17 @@ func RSI(closing []float64) ([]float64, []float64) {
 	return rsi, sma
 }
 
-// func sumT[T int | float64](i []T) T {
-// 	var o T
-// 	for _, v := range i {
-// 		o += v
-// 	}
-// 	return o
-// }
-
 // Simple Moving Average (SMA).
 func SMA(period int, values []float64) []float64 {
-	result := make([]float64, len(values))
-	sum := float64(0)
+	result := make([]float64, 0)
 
 	for i, value := range values {
-		count := i + 1
-		sum += value
-
-		if i >= period {
-			sum -= values[i-period]
-			count = period
+		if i == 0 {
+			result = append(result, value)
+			continue
 		}
-
-		result[i] = sum / float64(count)
+		thisSma := (result[i-1]*float64(period-1) + value) / float64(period)
+		result = append(result, thisSma)
 	}
 
 	return result
