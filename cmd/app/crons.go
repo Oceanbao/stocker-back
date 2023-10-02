@@ -87,20 +87,47 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 			outputValid = append(outputValid, v)
 		}
 	}
+	// Write in `fail_daily` for log.
+	collection, err := app.Dao().FindCollectionByNameOrId("fail_daily")
+	if err != nil {
+		log.Println("error in finding collection 'fail_daily': ", err)
+		return
+	}
+	err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+		for _, x := range output {
+			if !strings.HasPrefix(x, "fail") {
+				continue
+			}
+			dataToEnter := map[string]any{
+				"url": x,
+			}
+			record := models.NewRecord(collection)
+			record.Load(dataToEnter)
+
+			if err = txDao.SaveRecord(record); err != nil {
+				log.Println("error in writing record: ", x)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		log.Println("error in transaction of writing fail_daily records: ", err)
+		return
+	}
 
 	// 3.3 Check results and write to `daily` collection.
 	validResults := make([]struct {
 		Code   string
 		Market int
 		Klines []string
-	}, len(output))
+	}, len(outputValid))
 	for idx, x := range outputValid {
 		if err = json.Unmarshal([]byte(x), &validResults[idx]); err != nil {
 			log.Println("error in unmarshalling json: ", err)
 			continue
 		}
 	}
-	collection, err := app.Dao().FindCollectionByNameOrId("daily")
+	collection, err = app.Dao().FindCollectionByNameOrId("daily")
 	if err != nil {
 		log.Println("error in finding collection 'daily': ", err)
 		return
@@ -255,14 +282,14 @@ func requestWorker(id int, urls <-chan string, results chan<- string) {
 
 		resp, err := http.Get(url) //nolint:gosec,noctx // just ignore
 		if err != nil {
-			results <- fmt.Sprintf("fail: %v", err)
+			results <- fmt.Sprintf("fail: %v (%v)", err, url)
 			continue
 		}
 
 		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			results <- fmt.Sprintf("fail: %v", err)
+			results <- fmt.Sprintf("fail: %v (%v)", err, url)
 			continue
 		}
 

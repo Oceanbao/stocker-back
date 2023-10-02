@@ -76,7 +76,7 @@ func routeTrack(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		// 	log.Println("error in transaction of updating stocks records: ", err)
 		// 	return err
 		// }
-	}, /* optional middlewares */ apis.RequireRecordAuth("user"))
+	}, /* optional middlewares */ apis.RequireRecordAuth("users"))
 }
 
 // e.Router.POST("/upload", func(c echo.Context) error {
