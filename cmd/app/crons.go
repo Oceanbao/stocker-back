@@ -193,6 +193,8 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 	}, len(groupedDaily))
 	tempCounter := 0
 	for code, v := range groupedDaily {
+		currIndex := tempCounter
+		tempCounter++
 		rsi, _ := RSI(lo.Map(v, func(d dailyRecord, _ int) float64 {
 			return d.Close
 		}))
@@ -213,10 +215,10 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 		// Get "name" and "cap" from `stocks`.
 		record, errGetStockCode := app.Dao().FindFirstRecordByData("stocks", "code", k)
 		if errGetStockCode != nil {
-			log.Println("error in finding record in 'stocks': ", err)
-			return
+			log.Printf("error in finding record in 'stocks': (code: %v) (error: %v)\n", code, errGetStockCode)
+			continue
 		}
-		tempAlertUpsert[tempCounter] = struct {
+		tempAlertUpsert[currIndex] = struct {
 			Code string
 			Rsi  float64
 			K    float64
@@ -237,7 +239,6 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 			record.Get("name").(string),
 			record.Get("cap").(float64),
 		}
-		tempCounter++
 	}
 
 	// 3.6 Check for target, insert into `alert` (code, rsi, name, cap).
