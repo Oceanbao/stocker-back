@@ -29,6 +29,7 @@ func main() {
 		// e.Router.Use(apis.RequireRecordAuth("user"))
 
 		routeTrack(e, app)
+		routeUpdateDaily(e, app)
 
 		return nil
 	})

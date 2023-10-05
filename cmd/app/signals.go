@@ -74,7 +74,13 @@ func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) {
 		L := reduceLowest(getRange(low))
 		H := reduceHighest(getRange(high))
 
-		return ((C - L) / (H - L)) * float64(100)
+		result := ((C - L) / (H - L)) * float64(100)
+
+		if result != result {
+			result = float64(50)
+		}
+
+		return result
 	}
 
 	for idx := range closing {

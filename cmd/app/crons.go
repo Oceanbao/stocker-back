@@ -1,13 +1,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"math/rand"
-	"net/http"
-	"strings"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -25,145 +20,14 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 	// ---------------------------------------------------
 	err := clearCollection(app, "alert")
 	if err != nil {
-		log.Println("error in clearCollection of: alert")
+		log.Println("error in clearCollection of `alert`: ", err)
 	}
 
-	// 1. Get all stock code from `stocks` collection.
-	// ---------------------------------------------------
-	var tempStocks = []struct {
-		Code string `db:"code" json:"code"`
-	}{}
-	err = app.Dao().DB().
-		Select("code").
-		From("stocks").
-		All(&tempStocks)
-	if err != nil {
-		log.Println("error in reading database `stocks`")
-		return
-	}
-
-	// 3. Concurrently request all stocks for latest daily.
-	// ---------------------------------------------------
-	// 3.1 Build all urls into chan urls.
-	numJobs := len(tempStocks)
-	urls := make(chan string, numJobs)
-	results := make(chan string, numJobs)
-
-	today := time.Now()
-	pastXDays := 14
-	fiveDaysAgo := today.AddDate(0, 0, -pastXDays).Format("20060102")
-
-	// 3.2 Fire off workers to request daily.
-	numWorkers := 3
-	for w := 1; w <= numWorkers; w++ {
-		go requestWorker(w, urls, results)
-	}
-	for _, x := range tempStocks {
-		url := fmt.Sprintf(
-			"https://54.push2his.eastmoney.com/api/qt/stock/kline/get?"+
-				"cb=jQuery35106707668456928451_1695010059469"+
-				"&secid=%s"+
-				"&ut=fa5fd1943c7b386f172d6893dbfba10b"+
-				"&fields1=f1%%2Cf2%%2Cf3%%2Cf4%%2Cf5%%2Cf6"+
-				"&fields2=f51%%2Cf52%%2Cf53%%2Cf54%%2Cf55%%2Cf56%%2Cf57%%2Cf58%%2Cf59%%2Cf60%%2Cf61"+
-				"&klt=101&fqt=1"+
-				"&beg=%s&end=20500101"+
-				"&lmt=10&_=1695010059524", x.Code, fiveDaysAgo,
-		)
-		urls <- url
-	}
-	close(urls)
-
-	var output []string
-	for idx := 1; idx <= numJobs; idx++ {
-		output = append(output, <-results)
-	}
-	close(results)
-
-	// Extract the valid results.
-	outputValid := make([]string, 0)
-	for _, v := range output {
-		if !strings.HasPrefix(v, "fail") {
-			outputValid = append(outputValid, v)
-		}
-	}
-	// Write in `fail_daily` for log.
-	collection, err := app.Dao().FindCollectionByNameOrId("fail_daily")
-	if err != nil {
-		log.Println("error in finding collection 'fail_daily': ", err)
-		return
-	}
-	err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
-		for _, x := range output {
-			if !strings.HasPrefix(x, "fail") {
-				continue
-			}
-			dataToEnter := map[string]any{
-				"url": x,
-			}
-			record := models.NewRecord(collection)
-			record.Load(dataToEnter)
-
-			if err = txDao.SaveRecord(record); err != nil {
-				log.Println("error in writing record: ", x)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		log.Println("error in transaction of writing fail_daily records: ", err)
-		return
-	}
-
-	// 3.3 Check results and write to `daily` collection.
-	validResults := make([]struct {
-		Code   string
-		Market int
-		Klines []string
-	}, len(outputValid))
-	for idx, x := range outputValid {
-		if err = json.Unmarshal([]byte(x), &validResults[idx]); err != nil {
-			log.Println("error in unmarshalling json: ", err)
-			continue
-		}
-	}
-	collection, err = app.Dao().FindCollectionByNameOrId("daily")
-	if err != nil {
-		log.Println("error in finding collection 'daily': ", err)
-		return
-	}
-	err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
-		for _, x := range validResults {
-			if x.Klines == nil {
-				continue
-			}
-			for _, entry := range x.Klines {
-				parts := strings.Split(entry, ",")
-				dataToEnter := map[string]any{
-					"code":  fmt.Sprintf("%d.%s", x.Market, x.Code),
-					"date":  parts[0],
-					"open":  parts[1],
-					"high":  parts[3],
-					"low":   parts[4],
-					"close": parts[2],
-				}
-				record := models.NewRecord(collection)
-				record.Load(dataToEnter)
-
-				if err = txDao.SaveRecord(record); err != nil {
-					log.Println("error in writing record: ", x.Code, parts[0], err)
-				}
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		log.Println("error in transaction of writing new daily records: ", err)
-		return
-	}
+	// 1. Update `daily` collection.
+	updateDailyCollection(app)
 
 	// 3.4 Get latest 180-day `daily` record and groupby code.
-	xDaysAgo := today.AddDate(0, 0, -180).Format("2006-01-02 15:04:05.000Z")
+	xDaysAgo := time.Now().AddDate(0, 0, -180).Format("2006-01-02 15:04:05.000Z")
 	var tempDaily []dailyRecord
 	err = app.Dao().DB().
 		Select("code", "date", "open", "high", "low", "close").
@@ -213,7 +77,7 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 			return d.Close
 		}))
 		// Get "name" and "cap" from `stocks`.
-		record, errGetStockCode := app.Dao().FindFirstRecordByData("stocks", "code", k)
+		record, errGetStockCode := app.Dao().FindFirstRecordByData("stocks", "code", code)
 		if errGetStockCode != nil {
 			log.Printf("error in finding record in 'stocks': (code: %v) (error: %v)\n", code, errGetStockCode)
 			continue
@@ -242,7 +106,7 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 	}
 
 	// 3.6 Check for target, insert into `alert` (code, rsi, name, cap).
-	collection, err = app.Dao().FindCollectionByNameOrId("alert")
+	collection, err := app.Dao().FindCollectionByNameOrId("alert")
 	if err != nil {
 		log.Println("error in finding collection 'alert': ", err)
 		return
@@ -263,7 +127,7 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 			})
 
 			if err = txDao.SaveRecord(record); err != nil {
-				log.Println("error in writing record to alert: ", x.Code)
+				log.Println("error in writing record to alert: ", x, err)
 			}
 		}
 
@@ -273,46 +137,6 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 		log.Println("error in transaction of writing new alert records: ", err)
 		return
 	}
-}
-
-func requestWorker(id int, urls <-chan string, results chan<- string) {
-	for url := range urls {
-		sleepSecond := 3
-		time.Sleep(time.Second * time.Duration(rand.Intn(sleepSecond)+1)) //nolint:gosec // no need
-		log.Println("worker", id, "started")
-
-		resp, err := http.Get(url) //nolint:gosec,noctx // just ignore
-		if err != nil {
-			results <- fmt.Sprintf("fail: %v (%v)", err, url)
-			continue
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			results <- fmt.Sprintf("fail: %v (%v)", err, url)
-			continue
-		}
-
-		bodyText := string(body)
-		meat := sliceStringByChar(bodyText, "(", ")")
-		log.Println("worker", id, "done")
-		results <- meat
-	}
-}
-
-func sliceStringByChar(input, startChar, endChar string) string {
-	startIndex := strings.Index(input, startChar)
-	if startIndex == -1 {
-		return ""
-	}
-
-	endIndex := strings.LastIndex(input, endChar)
-	if endIndex == -1 {
-		return ""
-	}
-
-	return input[startIndex+1 : endIndex]
 }
 
 func clearCollection(app *pocketbase.PocketBase, collection string) error {
@@ -325,7 +149,7 @@ func clearCollection(app *pocketbase.PocketBase, collection string) error {
 		From(collection).
 		All(&tempAlert)
 	if err != nil {
-		log.Println("error in reading records from collection: ", collection)
+		log.Println("error in reading records from collection: ", collection, err)
 		return err
 	}
 
@@ -338,13 +162,13 @@ func clearCollection(app *pocketbase.PocketBase, collection string) error {
 				return errFindRecord
 			}
 			if err = txDao.DeleteRecord(record); err != nil {
-				return fmt.Errorf("error in deleting record with ID: %s", x.ID)
+				return fmt.Errorf("error in deleting record with ID: %s : %v", x.ID, err)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		log.Println("error in transaction - clear collection: ", collection)
+		log.Println("error in transaction - clear collection: ", collection, err)
 		return err
 	}
 

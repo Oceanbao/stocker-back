@@ -7,6 +7,14 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
+func routeUpdateDaily(e *core.ServeEvent, app *pocketbase.PocketBase) {
+	e.Router.GET("/update-daily", func(c echo.Context) error {
+		updateDailyCollection(app)
+
+		return c.JSON(200, map[string]any{"message": "ok"})
+	}, /* optional middlewares */ apis.RequireRecordAuth("users"))
+}
+
 func routeTrack(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	e.Router.GET("/track", func(c echo.Context) error {
 		// 1. Get all records from Collection `track`: 'code, name, started'.
