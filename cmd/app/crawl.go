@@ -26,7 +26,7 @@ type DailyResponse struct {
 	Data DailyData `json:"data"`
 }
 
-func updateDailyCollection(app *pocketbase.PocketBase) {
+func updateDailyCollection(app *pocketbase.PocketBase) { //nolint:gocognit,dupl //TOFIX
 	var tempStocks = []struct {
 		Code string `db:"code" json:"code"`
 	}{}
@@ -39,19 +39,21 @@ func updateDailyCollection(app *pocketbase.PocketBase) {
 		return
 	}
 
+	pastXDays := 14
 	resultsGood, resultsBad := crawlDaily(
 		lo.Map(tempStocks, func(d struct {
 			Code string `db:"code" json:"code"`
 		}, _ int) string {
 			return d.Code
 		}),
+		pastXDays,
 	)
 
 	// Write in `fail_daily` for log.
 	if len(resultsBad) > 0 {
-		collection, err := app.Dao().FindCollectionByNameOrId("fail_daily")
+		collection, errFindCollectionFailDaily := app.Dao().FindCollectionByNameOrId("fail_daily")
 		if err != nil {
-			log.Println("error in finding collection 'fail_daily': ", err)
+			log.Println("error in finding collection 'fail_daily': ", errFindCollectionFailDaily)
 			return
 		}
 		err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
@@ -108,14 +110,97 @@ func updateDailyCollection(app *pocketbase.PocketBase) {
 	}
 }
 
-func crawlDaily(codes []string) (resultGood []DailyResponse, resultBad []string) {
+func updateDailyCollectionETF(app *pocketbase.PocketBase) { //nolint:gocognit,dupl //TOFIX
+	var tempStocks = []struct {
+		Code string `db:"code" json:"code"`
+	}{}
+	err := app.Dao().DB().
+		Select("code").
+		From("etf").
+		All(&tempStocks)
+	if err != nil {
+		log.Println("error in reading database `etf`: ", err)
+		return
+	}
+
+	pastXDays := 14
+	resultsGood, resultsBad := crawlDaily(
+		lo.Map(tempStocks, func(d struct {
+			Code string `db:"code" json:"code"`
+		}, _ int) string {
+			return d.Code
+		}),
+		pastXDays,
+	)
+
+	// Write in `fail_daily` for log.
+	if len(resultsBad) > 0 {
+		collection, errFindCollectionFailDaily := app.Dao().FindCollectionByNameOrId("fail_daily")
+		if err != nil {
+			log.Println("error in finding collection 'fail_daily': ", errFindCollectionFailDaily)
+			return
+		}
+		err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+			for _, x := range resultsBad {
+				dataToEnter := map[string]any{
+					"url": x,
+				}
+				record := models.NewRecord(collection)
+				record.Load(dataToEnter)
+
+				if err = txDao.SaveRecord(record); err != nil {
+					log.Println("error in writing record: ", x, err)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			log.Println("error in transaction of writing fail_daily records: ", err)
+			return
+		}
+	}
+
+	// 3.3 Write valid responses to `daily` collection.
+	collection, err := app.Dao().FindCollectionByNameOrId("daily_etf")
+	if err != nil {
+		log.Println("error in finding collection 'daily_etf': ", err)
+		return
+	}
+	err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+		for _, x := range resultsGood {
+			for _, entry := range x.Data.Klines {
+				parts := strings.Split(entry, ",")
+				dataToEnter := map[string]any{
+					"code":  fmt.Sprintf("%d.%s", x.Data.Market, x.Data.Code),
+					"date":  parts[0],
+					"open":  parts[1],
+					"high":  parts[3],
+					"low":   parts[4],
+					"close": parts[2],
+				}
+				record := models.NewRecord(collection)
+				record.Load(dataToEnter)
+
+				if err = txDao.SaveRecord(record); err != nil {
+					log.Println("error in writing record to `daily`: ", x.Data.Code, parts[0], err)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		log.Println("error in transaction of writing new daily records: ", err)
+		return
+	}
+}
+
+func crawlDaily(codes []string, pastXDays int) ([]DailyResponse, []string) {
 	numJobs := len(codes)
 	// numJobs := 20
 	urls := make(chan string, numJobs)
 	results := make(chan string, numJobs)
 
 	today := time.Now()
-	pastXDays := 14
 	fiveDaysAgo := today.AddDate(0, 0, -pastXDays).Format("20060102")
 
 	numWorkers := 3

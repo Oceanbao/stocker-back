@@ -1,17 +1,28 @@
 package main
 
 import (
+	"net/http"
+
 	"github.com/labstack/echo/v5"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
 
+func routeUpdateDailyETF(e *core.ServeEvent, app *pocketbase.PocketBase) {
+	e.Router.GET("/update-daily-etf", func(c echo.Context) error {
+		cronDailySelectETFUpdate(app)
+
+		return c.JSON(http.StatusOK, map[string]any{"message": "ok"})
+		// }, /* optional middlewares */ apis.RequireRecordAuth("users"))
+	})
+}
+
 func routeUpdateDaily(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	e.Router.GET("/update-daily", func(c echo.Context) error {
 		updateDailyCollection(app)
 
-		return c.JSON(200, map[string]any{"message": "ok"})
+		return c.JSON(http.StatusOK, map[string]any{"message": "ok"})
 	}, /* optional middlewares */ apis.RequireRecordAuth("users"))
 }
 
@@ -29,13 +40,16 @@ func routeTrack(e *core.ServeEvent, app *pocketbase.PocketBase) {
 			From("track").
 			All(&tempRecords)
 		if err != nil {
-			return c.JSON(500, map[string]string{"message": "error in getting all records from database `track`"})
+			return c.JSON(
+				http.StatusBadRequest,
+				map[string]string{"message": "error in getting all records from database `track`"},
+			)
 		}
 		if len(tempRecords) == 0 {
-			return c.JSON(200, map[string]string{"message": "ok", "data": ""})
+			return c.JSON(http.StatusOK, map[string]string{"message": "ok", "data": ""})
 		}
 
-		return c.JSON(200, map[string]any{"message": "ok", "data": tempRecords})
+		return c.JSON(http.StatusOK, map[string]any{"message": "ok", "data": tempRecords})
 
 		// if key := c.PathParam("key"); key != keyStored {
 		// 	return c.JSON(http.StatusForbidden, map[string]string{"message": "Not allowed."})

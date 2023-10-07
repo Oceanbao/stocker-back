@@ -1,6 +1,10 @@
 package main
 
-const HUNDRED = 100
+const (
+	BIGNUM  = 9999
+	HUNDRED = 100
+	FIFTY   = 50
+)
 
 func MACD(closing []float64) ([]float64, []float64) {
 	ema12 := make([]float64, 0)
@@ -10,10 +14,10 @@ func MACD(closing []float64) ([]float64, []float64) {
 
 	for idx, c := range closing {
 		if idx == 0 {
-			thisEma12 := (c*float64(11) + c*float64(2)) / float64(13)
-			thisEma26 := (c*float64(25) + c*float64(2)) / float64(27)
+			thisEma12 := (c*float64(11) + c*float64(2)) / float64(13) //nolint:gomnd //ignore
+			thisEma26 := (c*float64(25) + c*float64(2)) / float64(27) //nolint:gomnd //ignore
 			thisDiff := thisEma12 - thisEma26
-			thisDea := (thisDiff*float64(8) + thisDiff*float64(2)) / float64(10)
+			thisDea := (thisDiff*float64(8) + thisDiff*float64(2)) / float64(10) //nolint:gomnd //ignore
 
 			ema12 = append(ema12, thisEma12)
 			ema26 = append(ema26, thisEma26)
@@ -22,10 +26,10 @@ func MACD(closing []float64) ([]float64, []float64) {
 			continue
 		}
 
-		thisEma12 := (ema12[idx-1]*float64(11) + c*float64(2)) / float64(13)
-		thisEma26 := (ema26[idx-1]*float64(25) + c*float64(2)) / float64(27)
+		thisEma12 := (ema12[idx-1]*float64(11) + c*float64(2)) / float64(13) //nolint:gomnd //ignore
+		thisEma26 := (ema26[idx-1]*float64(25) + c*float64(2)) / float64(27) //nolint:gomnd //ignore
 		thisDiff := thisEma12 - thisEma26
-		thisDea := (dea[idx-1]*float64(8) + thisDiff*float64(2)) / float64(10)
+		thisDea := (dea[idx-1]*float64(8) + thisDiff*float64(2)) / float64(10) //nolint:gomnd //ignore
 
 		ema12 = append(ema12, thisEma12)
 		ema26 = append(ema26, thisEma26)
@@ -36,11 +40,11 @@ func MACD(closing []float64) ([]float64, []float64) {
 	return diff, dea
 }
 
-func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) {
+func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) { //nolint:gocognit //TOFIX
 	allRSV := make([]float64, 0)
 	rsv := func(idx int) float64 {
 		getRange := func(input []float64) []float64 {
-			diff := idx + 1 - 9
+			diff := idx + 1 - 9 //nolint:gomnd // ignore
 			var start int
 			if diff > 0 {
 				start = diff
@@ -50,7 +54,7 @@ func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) {
 			return input[start : idx+1]
 		}
 		reduceLowest := func(input []float64) float64 {
-			acc := float64(9999)
+			acc := float64(BIGNUM)
 			for _, v := range input {
 				if acc < v {
 					continue
@@ -74,10 +78,10 @@ func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) {
 		L := reduceLowest(getRange(low))
 		H := reduceHighest(getRange(high))
 
-		result := ((C - L) / (H - L)) * float64(100)
+		result := ((C - L) / (H - L)) * float64(HUNDRED)
 
 		if result != result {
-			result = float64(50)
+			result = float64(FIFTY)
 		}
 
 		return result
@@ -93,15 +97,15 @@ func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) {
 
 	for idx, rsv := range allRSV {
 		if idx == 0 {
-			allK = append(allK, 50)
-			allD = append(allD, 50)
-			allJ = append(allJ, 50)
+			allK = append(allK, FIFTY)
+			allD = append(allD, FIFTY)
+			allJ = append(allJ, FIFTY)
 			continue
 		}
 
-		thisK := (float64(2)*allK[idx-1] + rsv) / float64(3)
-		thisD := (float64(2)*allD[idx-1] + thisK) / float64(3)
-		thisJ := float64(3)*thisK - float64(2)*thisD
+		thisK := (float64(2)*allK[idx-1] + rsv) / float64(3)   //nolint:gomnd //ignore
+		thisD := (float64(2)*allD[idx-1] + thisK) / float64(3) //nolint:gomnd //ignore
+		thisJ := float64(3)*thisK - float64(2)*thisD           //nolint:gomnd //ignore
 
 		allK = append(allK, thisK)
 		allD = append(allD, thisD)
@@ -111,7 +115,7 @@ func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) {
 	return allK, allD, allJ
 }
 
-func RSI(closing []float64) ([]float64, []float64) {
+func RSI(closing []float64) []float64 {
 	period := 6
 	pastAvgPeriod := period - 1
 	rsi := make([]float64, len(closing))
@@ -151,23 +155,23 @@ func RSI(closing []float64) ([]float64, []float64) {
 		rsi[idx] = (rs / (1.0 + rs)) * float64(HUNDRED)
 	}
 
-	sma := SMA(period, rsi)
+	// sma := SMA(period, rsi)
 
-	return rsi, sma
+	return rsi
 }
 
 // Simple Moving Average (SMA).
-func SMA(period int, values []float64) []float64 {
-	result := make([]float64, 0)
+// func SMA(period int, values []float64) []float64 {
+// 	result := make([]float64, 0)
 
-	for i, value := range values {
-		if i == 0 {
-			result = append(result, value)
-			continue
-		}
-		thisSma := (result[i-1]*float64(period-1) + value) / float64(period)
-		result = append(result, thisSma)
-	}
+// 	for i, value := range values {
+// 		if i == 0 {
+// 			result = append(result, value)
+// 			continue
+// 		}
+// 		thisSma := (result[i-1]*float64(period-1) + value) / float64(period)
+// 		result = append(result, thisSma)
+// 	}
 
-	return result
-}
+// 	return result
+// }

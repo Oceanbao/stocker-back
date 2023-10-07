@@ -30,6 +30,7 @@ func main() {
 
 		routeTrack(e, app)
 		routeUpdateDaily(e, app)
+		routeUpdateDailyETF(e, app)
 
 		return nil
 	})
@@ -40,8 +41,17 @@ func main() {
 
 		// Every week Mon-Fri at 00:00
 		// err := scheduler.Add("daily", "*/1 * * * *", func() {
-		err := scheduler.Add("daily", "0 0 * * *", func() {
+		err := scheduler.Add("daily", "0 0 * * 1-5", func() {
 			cronDailyPriceUpdate(app)
+		})
+		if err != nil {
+			return fmt.Errorf("error in adding cron job `dailyPrice`: %w", err)
+		}
+
+		// Every week Mon-Fri at 23:50
+		// err := scheduler.Add("daily", "*/1 * * * *", func() {
+		err = scheduler.Add("daily", "50 23 * * 1-5", func() {
+			cronDailySelectETFUpdate(app)
 		})
 		if err != nil {
 			return fmt.Errorf("error in adding cron job `dailyPrice`: %w", err)

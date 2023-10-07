@@ -15,7 +15,7 @@ import (
 const DefaultDateLayout = "2006-01-02 15:04:05.000Z"
 const HoursPerDay = 24
 
-func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit // ignore for now
+func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TOFIX
 	// 0. Clear entire collection of `alert`.
 	// ---------------------------------------------------
 	err := clearCollection(app, "alert")
@@ -59,7 +59,7 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen,gocognit
 	for code, v := range groupedDaily {
 		currIndex := tempCounter
 		tempCounter++
-		rsi, _ := RSI(lo.Map(v, func(d dailyRecord, _ int) float64 {
+		rsi := RSI(lo.Map(v, func(d dailyRecord, _ int) float64 {
 			return d.Close
 		}))
 		k, d, j := KDJ(
@@ -162,7 +162,7 @@ func clearCollection(app *pocketbase.PocketBase, collection string) error {
 				return errFindRecord
 			}
 			if err = txDao.DeleteRecord(record); err != nil {
-				return fmt.Errorf("error in deleting record with ID: %s : %v", x.ID, err)
+				return fmt.Errorf("error in deleting record with ID: %s : %w", x.ID, err)
 			}
 		}
 		return nil
@@ -173,6 +173,126 @@ func clearCollection(app *pocketbase.PocketBase, collection string) error {
 	}
 
 	return nil
+}
+
+func cronDailySelectETFUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TOFIX
+	// 0. Clear entire collection of `alert`.
+	// ---------------------------------------------------
+	err := clearCollection(app, "alert_etf")
+	if err != nil {
+		log.Println("error in clearCollection of `alert_etf`: ", err)
+	}
+
+	// 1. Update `daily` collection.
+	updateDailyCollectionETF(app)
+
+	// 3.4 Get latest 180-day `daily` record and groupby code.
+	xDaysAgo := time.Now().AddDate(0, 0, -180).Format("2006-01-02 15:04:05.000Z")
+	var tempDaily []dailyRecord
+	err = app.Dao().DB().
+		Select("code", "date", "open", "high", "low", "close").
+		From("daily_etf").
+		Where(dbx.NewExp(fmt.Sprintf("date >= \"%s\"", xDaysAgo))).
+		OrderBy("date ASC").
+		All(&tempDaily)
+	if err != nil {
+		log.Println("error in reading collection `daily_etf`: ", err)
+		return
+	}
+	groupedDaily := lo.GroupBy(tempDaily, func(d dailyRecord) string {
+		return d.Code
+	})
+
+	// 3.5 For each, compute RSI and KDJ and MACD.
+	tempAlertUpsert := make([]struct {
+		Code string
+		Rsi  float64
+		K    float64
+		D    float64
+		J    float64
+		Diff float64
+		Dea  float64
+		Name string
+	}, len(groupedDaily))
+	tempCounter := 0
+	for code, v := range groupedDaily {
+		currIndex := tempCounter
+		tempCounter++
+		rsi := RSI(lo.Map(v, func(d dailyRecord, _ int) float64 {
+			return d.Close
+		}))
+		k, d, j := KDJ(
+			lo.Map(v, func(d dailyRecord, _ int) float64 {
+				return d.High
+			}),
+			lo.Map(v, func(d dailyRecord, _ int) float64 {
+				return d.Low
+			}),
+			lo.Map(v, func(d dailyRecord, _ int) float64 {
+				return d.Close
+			}),
+		)
+		diff, dea := MACD(lo.Map(v, func(d dailyRecord, _ int) float64 {
+			return d.Close
+		}))
+		// Get "name" and "cap" from `stocks`.
+		record, errGetStockCode := app.Dao().FindFirstRecordByData("etf", "code", code)
+		if errGetStockCode != nil {
+			log.Printf("error in finding record in 'etf': (code: %v) (error: %v)\n", code, errGetStockCode)
+			continue
+		}
+		tempAlertUpsert[currIndex] = struct {
+			Code string
+			Rsi  float64
+			K    float64
+			D    float64
+			J    float64
+			Diff float64
+			Dea  float64
+			Name string
+		}{
+			code,
+			rsi[len(rsi)-1],
+			k[len(k)-1],
+			d[len(d)-1],
+			j[len(j)-1],
+			diff[len(diff)-1],
+			dea[len(dea)-1],
+			record.Get("name").(string),
+		}
+	}
+
+	// 3.6 Check for target, insert into `alert` (code, rsi, name, cap).
+	collection, err := app.Dao().FindCollectionByNameOrId("alert_etf")
+	if err != nil {
+		log.Println("error in finding collection 'alert_etf': ", err)
+		return
+	}
+	err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+		for _, x := range tempAlertUpsert {
+			record := models.NewRecord(collection)
+			record.Load(map[string]any{
+				"code": x.Code,
+				"name": x.Name,
+				"rsi":  x.Rsi,
+				"k":    x.K,
+				"d":    x.D,
+				"j":    x.J,
+				"diff": x.Diff,
+				"dea":  x.Dea,
+			})
+
+			if err = txDao.SaveRecord(record); err != nil {
+				log.Println("error in writing record to `alert_etf`: ", x, err)
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		log.Println("error in transaction of writing new `alert_etf` records: ", err)
+		return
+	}
 }
 
 // func cronDailyTrackUpdate(app *pocketbase.PocketBase) {
