@@ -39,18 +39,18 @@ func main() {
 	app.OnBeforeServe().Add(func(e *core.ServeEvent) error {
 		scheduler := cron.New()
 
-		// Every week Mon-Fri at 00:00
+		// Every week Mon-Fri at 10:00 UTC (18:00 Beijing Time)
 		// err := scheduler.Add("daily", "*/1 * * * *", func() {
-		err := scheduler.Add("daily", "0 0 * * 1-5", func() {
+		err := scheduler.Add("daily", "0 10 * * 1-5", func() {
 			cronDailyPriceUpdate(app)
 		})
 		if err != nil {
 			return fmt.Errorf("error in adding cron job `dailyPrice`: %w", err)
 		}
 
-		// Every week Mon-Fri at 23:50
+		// Every week Mon-Fri at 10:15 UTC (18:15 Beijing Time)
 		// err := scheduler.Add("daily", "*/1 * * * *", func() {
-		err = scheduler.Add("daily", "50 23 * * 1-5", func() {
+		err = scheduler.Add("daily", "15 10 * * 1-5", func() {
 			cronDailySelectETFUpdate(app)
 		})
 		if err != nil {

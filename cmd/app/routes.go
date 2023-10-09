@@ -14,6 +14,7 @@ func routeUpdateDailyETF(e *core.ServeEvent, app *pocketbase.PocketBase) {
 		cronDailySelectETFUpdate(app)
 
 		return c.JSON(http.StatusOK, map[string]any{"message": "ok"})
+		// TOFIX
 		// }, /* optional middlewares */ apis.RequireRecordAuth("users"))
 	})
 }
