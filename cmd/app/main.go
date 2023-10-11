@@ -40,7 +40,6 @@ func main() {
 		scheduler := cron.New()
 
 		// Every week Mon-Fri at 10:00 UTC (18:00 Beijing Time)
-		// err := scheduler.Add("daily", "*/1 * * * *", func() {
 		err := scheduler.Add("daily", "0 10 * * 1-5", func() {
 			cronDailyPriceUpdate(app)
 		})
@@ -49,8 +48,7 @@ func main() {
 		}
 
 		// Every week Mon-Fri at 10:15 UTC (18:15 Beijing Time)
-		// err := scheduler.Add("daily", "*/1 * * * *", func() {
-		err = scheduler.Add("daily", "15 10 * * 1-5", func() {
+		err = scheduler.Add("daily-etf", "15 10 * * 1-5", func() {
 			cronDailySelectETFUpdate(app)
 		})
 		if err != nil {
