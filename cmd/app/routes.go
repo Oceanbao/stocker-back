@@ -30,12 +30,7 @@ func routeUpdateDaily(e *core.ServeEvent, app *pocketbase.PocketBase) {
 func routeTrack(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	e.Router.GET("/track", func(c echo.Context) error {
 		// 1. Get all records from Collection `track`: 'code, name, started'.
-		var tempRecords = []struct {
-			ID      string `db:"id" json:"id"`
-			Code    string `db:"code" json:"code"`
-			Name    string `db:"name" json:"name"`
-			Started string `db:"started" json:"started"`
-		}{}
+		var tempRecords = []recordTrack{}
 		err := app.Dao().DB().
 			Select("id", "code", "name", "started").
 			From("track").

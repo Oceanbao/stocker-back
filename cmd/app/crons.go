@@ -15,7 +15,7 @@ import (
 const DefaultDateLayout = "2006-01-02 15:04:05.000Z"
 const HoursPerDay = 24
 
-func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TOFIX
+func cronDailyPriceUpdate(app *pocketbase.PocketBase) {
 	// 0. Clear entire collection of `alert`.
 	// ---------------------------------------------------
 	err := clearCollection(app, "alert")
@@ -28,7 +28,7 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TOFIX
 
 	// 3.4 Get latest 180-day `daily` record and groupby code.
 	xDaysAgo := time.Now().AddDate(0, 0, -180).Format("2006-01-02 15:04:05.000Z")
-	var tempDaily []dailyRecord
+	var tempDaily []recordDaily
 	err = app.Dao().DB().
 		Select("code", "date", "open", "high", "low", "close").
 		From("daily").
@@ -39,41 +39,31 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TOFIX
 		log.Println("error in reading daily collection: ", err)
 		return
 	}
-	groupedDaily := lo.GroupBy(tempDaily, func(d dailyRecord) string {
+	groupedDaily := lo.GroupBy(tempDaily, func(d recordDaily) string {
 		return d.Code
 	})
 
 	// 3.5 For each, compute RSI and KDJ and MACD.
-	tempAlertUpsert := make([]struct {
-		Code string
-		Rsi  float64
-		K    float64
-		D    float64
-		J    float64
-		Diff float64
-		Dea  float64
-		Name string
-		Cap  float64
-	}, len(groupedDaily))
+	tempAlertUpsert := make([]recordAlert, len(groupedDaily))
 	tempCounter := 0
 	for code, v := range groupedDaily {
 		currIndex := tempCounter
 		tempCounter++
-		rsi := RSI(lo.Map(v, func(d dailyRecord, _ int) float64 {
+		rsi := RSI(lo.Map(v, func(d recordDaily, _ int) float64 {
 			return d.Close
 		}))
 		k, d, j := KDJ(
-			lo.Map(v, func(d dailyRecord, _ int) float64 {
+			lo.Map(v, func(d recordDaily, _ int) float64 {
 				return d.High
 			}),
-			lo.Map(v, func(d dailyRecord, _ int) float64 {
+			lo.Map(v, func(d recordDaily, _ int) float64 {
 				return d.Low
 			}),
-			lo.Map(v, func(d dailyRecord, _ int) float64 {
+			lo.Map(v, func(d recordDaily, _ int) float64 {
 				return d.Close
 			}),
 		)
-		diff, dea := MACD(lo.Map(v, func(d dailyRecord, _ int) float64 {
+		diff, dea := MACD(lo.Map(v, func(d recordDaily, _ int) float64 {
 			return d.Close
 		}))
 		// Get "name" and "cap" from `stocks`.
@@ -82,26 +72,16 @@ func cronDailyPriceUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TOFIX
 			log.Printf("error in finding record in 'stocks': (code: %v) (error: %v)\n", code, errGetStockCode)
 			continue
 		}
-		tempAlertUpsert[currIndex] = struct {
-			Code string
-			Rsi  float64
-			K    float64
-			D    float64
-			J    float64
-			Diff float64
-			Dea  float64
-			Name string
-			Cap  float64
-		}{
-			code,
-			rsi[len(rsi)-1],
-			k[len(k)-1],
-			d[len(d)-1],
-			j[len(j)-1],
-			diff[len(diff)-1],
-			dea[len(dea)-1],
-			record.Get("name").(string),
-			record.Get("cap").(float64),
+		tempAlertUpsert[currIndex] = recordAlert{
+			Code: code,
+			Name: record.Get("name").(string),
+			Cap:  record.Get("cap").(float64),
+			Rsi:  rsi[len(rsi)-1],
+			K:    k[len(k)-1],
+			D:    d[len(d)-1],
+			J:    j[len(j)-1],
+			Diff: diff[len(diff)-1],
+			Dea:  dea[len(dea)-1],
 		}
 	}
 
@@ -175,7 +155,7 @@ func clearCollection(app *pocketbase.PocketBase, collection string) error {
 	return nil
 }
 
-func cronDailySelectETFUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TOFIX
+func cronDailySelectETFUpdate(app *pocketbase.PocketBase) {
 	// 0. Clear entire collection of `alert`.
 	// ---------------------------------------------------
 	err := clearCollection(app, "alert_etf")
@@ -188,7 +168,7 @@ func cronDailySelectETFUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TO
 
 	// 3.4 Get latest 180-day `daily` record and groupby code.
 	xDaysAgo := time.Now().AddDate(0, 0, -180).Format("2006-01-02 15:04:05.000Z")
-	var tempDaily []dailyRecord
+	var tempDaily []recordDaily
 	err = app.Dao().DB().
 		Select("code", "date", "open", "high", "low", "close").
 		From("daily_etf").
@@ -199,40 +179,31 @@ func cronDailySelectETFUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TO
 		log.Println("error in reading collection `daily_etf`: ", err)
 		return
 	}
-	groupedDaily := lo.GroupBy(tempDaily, func(d dailyRecord) string {
+	groupedDaily := lo.GroupBy(tempDaily, func(d recordDaily) string {
 		return d.Code
 	})
 
 	// 3.5 For each, compute RSI and KDJ and MACD.
-	tempAlertUpsert := make([]struct {
-		Code string
-		Rsi  float64
-		K    float64
-		D    float64
-		J    float64
-		Diff float64
-		Dea  float64
-		Name string
-	}, len(groupedDaily))
+	tempAlertUpsert := make([]recordAlert, len(groupedDaily))
 	tempCounter := 0
 	for code, v := range groupedDaily {
 		currIndex := tempCounter
 		tempCounter++
-		rsi := RSI(lo.Map(v, func(d dailyRecord, _ int) float64 {
+		rsi := RSI(lo.Map(v, func(d recordDaily, _ int) float64 {
 			return d.Close
 		}))
 		k, d, j := KDJ(
-			lo.Map(v, func(d dailyRecord, _ int) float64 {
+			lo.Map(v, func(d recordDaily, _ int) float64 {
 				return d.High
 			}),
-			lo.Map(v, func(d dailyRecord, _ int) float64 {
+			lo.Map(v, func(d recordDaily, _ int) float64 {
 				return d.Low
 			}),
-			lo.Map(v, func(d dailyRecord, _ int) float64 {
+			lo.Map(v, func(d recordDaily, _ int) float64 {
 				return d.Close
 			}),
 		)
-		diff, dea := MACD(lo.Map(v, func(d dailyRecord, _ int) float64 {
+		diff, dea := MACD(lo.Map(v, func(d recordDaily, _ int) float64 {
 			return d.Close
 		}))
 		// Get "name" and "cap" from `stocks`.
@@ -241,24 +212,16 @@ func cronDailySelectETFUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TO
 			log.Printf("error in finding record in 'etf': (code: %v) (error: %v)\n", code, errGetStockCode)
 			continue
 		}
-		tempAlertUpsert[currIndex] = struct {
-			Code string
-			Rsi  float64
-			K    float64
-			D    float64
-			J    float64
-			Diff float64
-			Dea  float64
-			Name string
-		}{
-			code,
-			rsi[len(rsi)-1],
-			k[len(k)-1],
-			d[len(d)-1],
-			j[len(j)-1],
-			diff[len(diff)-1],
-			dea[len(dea)-1],
-			record.Get("name").(string),
+		tempAlertUpsert[currIndex] = recordAlert{
+			Code: code,
+			Name: record.Get("name").(string),
+			Cap:  0,
+			Rsi:  rsi[len(rsi)-1],
+			K:    k[len(k)-1],
+			D:    d[len(d)-1],
+			J:    j[len(j)-1],
+			Diff: diff[len(diff)-1],
+			Dea:  dea[len(dea)-1],
 		}
 	}
 
@@ -295,66 +258,107 @@ func cronDailySelectETFUpdate(app *pocketbase.PocketBase) { //nolint:funlen //TO
 	}
 }
 
-// func cronDailyTrackUpdate(app *pocketbase.PocketBase) {
-// 	// Collection `track`: 'code, name, started, days, change'.
-// 	// When front create new record, the latter 3 fields are set to zero value.
-// 	// 1. Get all records.
-// 	var tempRecords = []struct {
-// 		ID      string `db:"id" json:"id"`
-// 		Code    string `db:"code" json:"code"`
-// 		Name    string `db:"name" json:"name"`
-// 		Started string `db:"started" json:"started"`
-// 		Days    string `db:"days" json:"days"`
-// 		Change  string `db:"change" json:"change"`
-// 	}{}
-// 	err := app.Dao().DB().
-// 		Select("id", "code", "name", "started", "days", "change").
-// 		From("track").
-// 		All(&tempRecords)
-// 	if err != nil {
-// 		log.Println("error in getting all records from database `track`")
-// 		return
-// 	}
-// 	if len(tempRecords) == 0 {
-// 		log.Println("no record in collection `track`, skip cron job.")
-// 		return
-// 	}
+func cronDailyTallyUpdate(app *pocketbase.PocketBase) { //nolint:gocognit //TOFIX
+	// 1. Get all stock ID from `track`
+	recordTracks := []recordTrack{}
+	err := app.Dao().DB().
+		Select("id", "code", "name", "started").
+		From("track").
+		All(&recordTracks)
+	if err != nil {
+		log.Println("error in getting all records from database `track`")
+		return
+	}
 
-// 	err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
-// 		for _, x := range tempRecords {
-// 			filter := fmt.Sprintf("code = '%s' && date > '%s'", x.Code, x.Started)
-// 			recordsDaily, errFindDailyByDate := app.Dao().FindRecordsByFilter("daily", filter, "date", -1, 0)
-// 			if errFindDailyByDate != nil {
-// 				return fmt.Errorf("error in finding record in `daily`: %w", errFindDailyByDate)
-// 			}
+	recordTracksETF := []recordTrack{}
+	err = app.Dao().DB().
+		Select("id", "code", "name", "started").
+		From("track_etf").
+		All(&recordTracksETF)
+	if err != nil {
+		log.Println("error in getting all records from database `track_etf`")
+		return
+	}
 
-// 			dateStarted, errParseTime := time.Parse(DefaultDateLayout, x.Started)
-// 			if errParseTime != nil {
-// 				return fmt.Errorf("error in parsing started time: %w", errParseTime)
-// 			}
+	if len(recordTracks) == 0 && len(recordTracksETF) == 0 {
+		log.Println("no record in collection `track` and `track_etf`, skip cron job.")
+		return
+	}
 
-// 			daysPast := int(time.Since(dateStarted).Hours() / float64(HoursPerDay))
-// 			priceLatest := recordsDaily[len(recordsDaily)-1].Get("close").(float64) //nolint: errcheck //what
-// 			priceStarted := recordsDaily[0].Get("close").(float64)                  //nolint: errcheck  //what
-// 			change := (priceLatest - priceStarted) / priceStarted
+	allTracks := make([]struct {
+		etf     bool
+		records []recordTrack
+	}, 2) //nolint:gomnd //ignore
 
-// 			recordTrack, errFindTrackRecord := app.Dao().FindRecordById("track", x.ID)
-// 			if errFindTrackRecord != nil {
-// 				return fmt.Errorf("error in finding record in `track`: %w", errFindTrackRecord)
-// 			}
+	allTracks[0].etf = false
+	allTracks[0].records = recordTracks
+	allTracks[1].etf = true
+	allTracks[1].records = recordTracksETF
 
-// 			recordTrack.Set("days", daysPast)
-// 			recordTrack.Set("change", change)
+	err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+		for _, val := range allTracks {
+			var collectionName string
+			if val.etf {
+				collectionName = "daily_etf"
+			} else {
+				collectionName = "daily"
+			}
 
-// 			if err = txDao.SaveRecord(recordTrack); err != nil {
-// 				return fmt.Errorf("error in updating record: %v (%w)", x.ID, err)
-// 			}
-// 		}
+			for _, x := range val.records {
+				filter := fmt.Sprintf("code = '%s' && date > '%s'", x.Code, x.Started)
+				recordsDaily, err := app.Dao().FindRecordsByFilter(collectionName, filter, "date", -1, 0)
+				if err != nil {
+					log.Println(fmt.Errorf("error in finding record in `daily`: %w", err))
+					continue
+				}
+				if len(recordsDaily) == 0 {
+					log.Printf("skip [%v]: no day past since tracked\n", x.Code)
+					continue
+				}
 
-// 		return nil
-// 	})
-// 	if err != nil {
-// 		log.Println("error in transaction of updating stocks records: ", err)
-// 		return
-// 	}
-// }
+				// dateStarted, errParseTime := time.Parse(DefaultDateLayout, x.Started)
+				// if errParseTime != nil {
+				// 	log.Println(fmt.Errorf("error in parsing started time: %w", errParseTime))
+				// 	continue
+				// }
+				// daysPast := int(time.Since(dateStarted).Hours() / float64(HoursPerDay))
+
+				priceLatest, ok := recordsDaily[len(recordsDaily)-1].Get("close").(float64)
+				if !ok {
+					log.Printf("skip [%v]: fail to convert 'close' to float64\n", x.Code)
+					continue
+				}
+				priceStarted, ok := recordsDaily[0].Get("close").(float64)
+				if !ok {
+					log.Printf("skip [%v]: fail to convert 'close' to float64\n", x.Code)
+					continue
+				}
+				change := (priceLatest - priceStarted) / priceStarted
+
+				recordUser, err := app.Dao().FindAuthRecordByUsername("users", "oceanbao")
+				if err != nil {
+					return fmt.Errorf("error in finding record in `users`: %w", err)
+				}
+
+				tally, ok := recordUser.Get("trade_tally").(float64)
+				if !ok {
+					log.Printf("skip [%v]: fail to convert 'tally' to float64\n", x.Code)
+					continue
+				}
+				tally += change
+				recordUser.Set("trade_tally", tally)
+
+				if err = txDao.SaveRecord(recordUser); err != nil {
+					return fmt.Errorf("error in updating record `users`: %v (%w)", recordUser.Id, err)
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Println("error in transaction of updating `users` records (tally): ", err)
+		return
+	}
+}
