@@ -164,15 +164,15 @@ func cronDailySelectETFUpdate(app *pocketbase.PocketBase) {
 	}
 
 	// 1. Update `daily` collection.
-	updateDailyCollectionETF(app)
+	updateDailyCollectionETF(app, 14)
 
 	// 3.4 Get latest 180-day `daily` record and groupby code.
-	xDaysAgo := time.Now().AddDate(0, 0, -180).Format("2006-01-02 15:04:05.000Z")
+	// xDaysAgo := time.Now().AddDate(0, 0, -180).Format("2006-01-02 15:04:05.000Z")
 	var tempDaily []recordDaily
 	err = app.Dao().DB().
 		Select("code", "date", "open", "high", "low", "close").
 		From("daily_etf").
-		Where(dbx.NewExp(fmt.Sprintf("date >= \"%s\"", xDaysAgo))).
+		// Where(dbx.NewExp(fmt.Sprintf("date >= \"%s\"", xDaysAgo))).
 		OrderBy("date ASC").
 		All(&tempDaily)
 	if err != nil {
@@ -258,7 +258,7 @@ func cronDailySelectETFUpdate(app *pocketbase.PocketBase) {
 	}
 }
 
-func cronDailyTallyUpdate(app *pocketbase.PocketBase) { //nolint:gocognit //TOFIX
+func cronDailyTallyUpdate(app *pocketbase.PocketBase) { //nolint:gocognit //ignore
 	// 1. Get all stock ID from `track`
 	recordTracks := []recordTrack{}
 	err := app.Dao().DB().

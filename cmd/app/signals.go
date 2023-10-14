@@ -40,7 +40,7 @@ func MACD(closing []float64) ([]float64, []float64) {
 	return diff, dea
 }
 
-func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) { //nolint:gocognit //TOFIX
+func KDJ(high, low, closing []float64) ([]float64, []float64, []float64) { //nolint:gocognit //ignore
 	allRSV := make([]float64, 0)
 	rsv := func(idx int) float64 {
 		getRange := func(input []float64) []float64 {

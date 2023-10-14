@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo/v5"
 	"github.com/pocketbase/pocketbase"
@@ -11,17 +12,26 @@ import (
 
 func routeUpdateDailyETF(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	e.Router.GET("/update-daily-etf", func(c echo.Context) error {
-		cronDailySelectETFUpdate(app)
+		days := c.QueryParam("days")
+		if days == "" {
+			return c.JSON(http.StatusOK, map[string]any{"message": "require days param"})
+		}
+
+		daysInt, err := strconv.Atoi(days)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]any{"message": "cannot conver query to int"})
+		}
+
+		go updateDailyCollectionETF(app, daysInt)
 
 		return c.JSON(http.StatusOK, map[string]any{"message": "ok"})
-		// TOFIX
-		// }, /* optional middlewares */ apis.RequireRecordAuth("users"))
-	})
+		// })
+	}, /* optional middlewares */ apis.RequireRecordAuth("users"))
 }
 
 func routeUpdateDaily(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	e.Router.GET("/update-daily", func(c echo.Context) error {
-		updateDailyCollection(app)
+		go updateDailyCollection(app)
 
 		return c.JSON(http.StatusOK, map[string]any{"message": "ok"})
 	}, /* optional middlewares */ apis.RequireRecordAuth("users"))
@@ -149,57 +159,6 @@ func routeTrack(e *core.ServeEvent, app *pocketbase.PocketBase) {
 
 // 		return nil
 // 	})
-
-// 	return c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-// })
-
-// e.Router.GET("/upload", func(c echo.Context) error {
-// 	data := []dailyRecordDB{}
-
-// 	err := app.Dao().DB().
-// 		Select("id", "code", "date", "open", "high", "low", "close").
-// 		From("daily").
-// 		All(&data)
-// 	if err != nil {
-// 		log.Println("error in reading database")
-// 		return apis.NewBadRequestError("error in reading database", err)
-// 	}
-
-// 	grouped := lop.GroupBy(data, func(d dailyRecordDB) (code string) {
-// 		return d.Code
-// 	})
-// 	log.Println("len(data): ", len(data))
-// 	log.Println("len(grouped): ", len(grouped))
-
-// 	codeDaily := make([]string, len(grouped))
-// 	index := 0
-// 	for k := range grouped {
-// 		var key string
-// 		parts := strings.Split(k, ".")
-// 		if parts[0] == "0" {
-// 			key = fmt.Sprintf("%s%s", "sz", parts[1])
-// 		} else {
-// 			key = fmt.Sprintf("%s%s", "sh", parts[1])
-// 		}
-// 		codeDaily[index] = key
-// 		index++
-// 	}
-
-// 	var dataTemp = []struct {
-// 		Code string `db:"code" json:"code"`
-// 	}{}
-// 	err = app.Dao().DB().
-// 		Select("code").
-// 		From("stocks").
-// 		All(&dataTemp)
-// 	if err != nil {
-// 		log.Println("error in reading database")
-// 		return apis.NewBadRequestError("error in reading database", err)
-// 	}
-// 	codeStock := make([]string, len(dataTemp))
-// 	for idx, x := range dataTemp {
-// 		codeStock[idx] = x.Code
-// 	}
 
 // 	return c.JSON(http.StatusOK, map[string]string{"message": "ok"})
 // })

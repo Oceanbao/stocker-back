@@ -26,7 +26,7 @@ type DailyResponse struct {
 	Data DailyData `json:"data"`
 }
 
-func updateDailyCollection(app *pocketbase.PocketBase) { //nolint:gocognit,dupl //TOFIX
+func updateDailyCollection(app *pocketbase.PocketBase) { //nolint:gocognit,dupl //ignore
 	var tempStocks = []struct {
 		Code string `db:"code" json:"code"`
 	}{}
@@ -110,7 +110,7 @@ func updateDailyCollection(app *pocketbase.PocketBase) { //nolint:gocognit,dupl 
 	}
 }
 
-func updateDailyCollectionETF(app *pocketbase.PocketBase) { //nolint:gocognit,dupl //TOFIX
+func updateDailyCollectionETF(app *pocketbase.PocketBase, days int) { //nolint:gocognit,dupl //ignore
 	var tempStocks = []struct {
 		Code string `db:"code" json:"code"`
 	}{}
@@ -123,14 +123,13 @@ func updateDailyCollectionETF(app *pocketbase.PocketBase) { //nolint:gocognit,du
 		return
 	}
 
-	pastXDays := 14
 	resultsGood, resultsBad := crawlDaily(
 		lo.Map(tempStocks, func(d struct {
 			Code string `db:"code" json:"code"`
 		}, _ int) string {
 			return d.Code
 		}),
-		pastXDays,
+		days,
 	)
 
 	// Write in `fail_daily` for log.
