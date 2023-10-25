@@ -18,7 +18,7 @@ func main() {
 		// Global middleware.
 		// e.Router.Use(apis.RequireRecordAuth("user"))
 
-		routeTrack(e, app)
+		routeGetTrack(e, app)
 		routeUpdateDaily(e, app)
 		routeUpdateDailyETF(e, app)
 

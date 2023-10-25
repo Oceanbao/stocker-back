@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v5"
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -37,7 +40,7 @@ func routeUpdateDaily(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	}, /* optional middlewares */ apis.RequireRecordAuth("users"))
 }
 
-func routeTrack(e *core.ServeEvent, app *pocketbase.PocketBase) {
+func routeGetTrack(e *core.ServeEvent, app *pocketbase.PocketBase) {
 	e.Router.GET("/track", func(c echo.Context) error {
 		// 1. Get all records from Collection `track`: 'code, name, started'.
 		var tempRecords = []recordTrack{}
@@ -55,110 +58,73 @@ func routeTrack(e *core.ServeEvent, app *pocketbase.PocketBase) {
 			return c.JSON(http.StatusOK, map[string]string{"message": "ok", "data": ""})
 		}
 
-		return c.JSON(http.StatusOK, map[string]any{"message": "ok", "data": tempRecords})
+		results := make([]struct {
+			Code    string  `json:"code"`
+			Name    string  `json:"name"`
+			Started string  `json:"started"`
+			Change  float64 `json:"change"`
+		}, 0)
+		// 2. For each record, get its closes since 'started'.
+		for _, rec := range tempRecords {
+			var tempDaily []recordDaily
+			err = app.Dao().DB().
+				Select("code", "date", "open", "high", "low", "close").
+				From("daily").
+				Where(dbx.NewExp(fmt.Sprintf("code = \"%s\"", rec.Code))).
+				AndWhere(dbx.NewExp(fmt.Sprintf("date >= \"%s\"", rec.Started))).
+				OrderBy("date ASC").
+				All(&tempDaily)
+			if err != nil {
+				log.Println("error in reading daily collection: ", err)
+				continue
+			}
 
-		// if key := c.PathParam("key"); key != keyStored {
-		// 	return c.JSON(http.StatusForbidden, map[string]string{"message": "Not allowed."})
-		// }
+			// If len() == 0, tracked stock has no data yet; make it to
+			// take yesterday's value (same as though 1D past).
+			if len(tempDaily) == 0 {
+				results = append(results, struct {
+					Code    string  "json:\"code\""
+					Name    string  "json:\"name\""
+					Started string  "json:\"started\""
+					Change  float64 "json:\"change\""
+				}{
+					Code:    rec.Code,
+					Name:    rec.Name,
+					Started: rec.Started,
+					Change:  float64(0),
+				})
+				continue
+			}
 
-		// var err error
-		// // 1. Update all `alert` records.
-		// // 1.1 Get all `stocks` records.
-		// var tempRecords = []struct {
-		// 	ID   string `db:"id" json:"id"`
-		// 	Code string `db:"code" json:"code"`
-		// 	Name string `db:"name" json:"name"`
-		// 	Cap  string `db:"cap" json:"cap"`
-		// }{}
-		// err = app.Dao().DB().
-		// 	Select("id", "code", "name", "cap").
-		// 	From("stocks").
-		// 	All(&tempRecords)
-		// if err != nil {
-		// 	log.Println("error in reading database `stocks`")
-		// 	return err
-		// }
-		// // 1.2 For each `alert` record, update its fields.
-		// err = app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
-		// 	for _, x := range tempRecords {
-		// 		record, errFindStockByID := app.Dao().FindRecordById("stocks", x.ID)
-		// 		if errFindStockByID != nil {
-		// 			log.Println("error in finding record in 'stocks': ", errFindStockByID)
-		// 			return errFindStockByID
-		// 		}
+			closeStart := tempDaily[0].Close
+			closeEnd := tempDaily[len(tempDaily)-1].Close
+			change := (closeEnd - closeStart) / closeStart
 
-		// 		codeNew := x.Code
-		// 		codeNew = strings.ReplaceAll(codeNew, "sh", "1.")
-		// 		codeNew = strings.ReplaceAll(codeNew, "sz", "0.")
-		// 		record.Set("code", codeNew)
+			// log.Println(rec.Code, rec.Started)
+			// log.Println(change)
+			// log.Println(tempDaily)
+			// log.Println("--------------------")
 
-		// 		if err = txDao.SaveRecord(record); err != nil {
-		// 			log.Println("error in updating record: ", x.Code, err)
-		// 			return err
-		// 		}
-		// 	}
+			results = append(results, struct {
+				Code    string  "json:\"code\""
+				Name    string  "json:\"name\""
+				Started string  "json:\"started\""
+				Change  float64 "json:\"change\""
+			}{
+				Code:    rec.Code,
+				Name:    rec.Name,
+				Started: rec.Started,
+				Change:  change,
+			})
+		}
 
-		// 	return nil
-		// })
-		// if err != nil {
-		// 	log.Println("error in transaction of updating stocks records: ", err)
-		// 	return err
-		// }
+		return c.JSON(http.StatusOK, map[string]any{"message": "ok", "data": results})
 	}, /* optional middlewares */ apis.RequireRecordAuth("users"))
 }
 
-// e.Router.POST("/upload", func(c echo.Context) error {
-// 	data := struct {
-// 		Daily []dailyData `json:"daily"`
-// 	}{}
-// 	if err := c.Bind(&data); err != nil {
-// 		log.Println("error in reading body json")
-// 		log.Println("error: ", err)
-// 		return apis.NewBadRequestError("error in reading body json", err)
-// 	}
-
-// 	// var daily []dailyData
-// 	// err := json.Unmarshal(dailyFile, &daily)
-// 	// if err != nil {
-// 	// 	log.Println("error in reading embed file")
-// 	//  return apis.NewBadRequestError("erro in reading embed file", err)
-// 	// }
-
-// 	// b, err := json.Marshal(daily[0])
-// 	// if err != nil {
-// 	// 	log.Println("error in marshalling json")
-// 	//  return apis.NewBadRequestError("error in marshalling json", err)
-// 	// }
-
-// 	collection, err := app.Dao().FindCollectionByNameOrId("daily")
-// 	if err != nil {
-// 		log.Println("error in finding collection 'daily'", collection)
-// 		return apis.NewBadRequestError("error in finding collection `daily`", err)
-// 	}
-
-// 	app.Dao().RunInTransaction(func(txDao *daos.Dao) error {
-// 		for _, stock := range data.Daily {
-// 			for _, entry := range stock.Data {
-// 				record := models.NewRecord(collection)
-// 				record.Load(map[string]any{
-// 					"code":  stock.Code,
-// 					"date":  entry.Date,
-// 					"open":  entry.Open,
-// 					"high":  entry.High,
-// 					"low":   entry.Low,
-// 					"close": entry.Close,
-// 				})
-
-// 				if err = txDao.SaveRecord(record); err != nil {
-// 					log.Println("error in writing record: ", stock.Name, entry.Date)
-// 					// log.Println("error: ", err)
-// 					// return apis.NewBadRequestError(fmt.Sprintf("error in writing record: %v-%v", stock.Name, entry.Date), err)
-// 				}
-// 			}
-// 		}
-
-// 		return nil
-// 	})
-
-// 	return c.JSON(http.StatusOK, map[string]string{"message": "ok"})
-// })
+// dateStarted, errParseTime := time.Parse(DefaultDateLayout, x.Started)
+// if errParseTime != nil {
+// 	log.Println(fmt.Errorf("error in parsing started time: %w", errParseTime))
+// 	continue
+// }
+// daysPast := int(time.Since(dateStarted).Hours() / float64(HoursPerDay))

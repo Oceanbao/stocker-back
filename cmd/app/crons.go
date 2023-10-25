@@ -316,13 +316,6 @@ func cronDailyTallyUpdate(app *pocketbase.PocketBase) { //nolint:gocognit //igno
 					continue
 				}
 
-				// dateStarted, errParseTime := time.Parse(DefaultDateLayout, x.Started)
-				// if errParseTime != nil {
-				// 	log.Println(fmt.Errorf("error in parsing started time: %w", errParseTime))
-				// 	continue
-				// }
-				// daysPast := int(time.Since(dateStarted).Hours() / float64(HoursPerDay))
-
 				priceLatest, ok := recordsDaily[len(recordsDaily)-1].Get("close").(float64)
 				if !ok {
 					log.Printf("skip [%v]: fail to convert 'close' to float64\n", x.Code)
