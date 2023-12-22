@@ -26,7 +26,6 @@ tasks:
       - task: goformat
       - task: goimports
       - task: govet
-      - task: staticcheck
       - task: gotest
 
   gomod:
@@ -49,11 +48,6 @@ tasks:
     desc: go vet all.
     cmds:
       - go vet ./...
-
-  staticcheck:
-    desc: staticcheck.
-    cmds:
-      - staticcheck ./...
 
   gobuild:
     desc: Build program.

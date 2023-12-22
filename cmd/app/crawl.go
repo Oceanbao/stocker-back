@@ -26,7 +26,7 @@ type DailyResponse struct {
 	Data DailyData `json:"data"`
 }
 
-func updateDailyCollection(app *pocketbase.PocketBase) { //nolint:gocognit,dupl //ignore
+func updateDailyCollection(app *pocketbase.PocketBase) { //nolint:gocognit //ignore
 	var tempStocks = []struct {
 		Code string `db:"code" json:"code"`
 	}{}
@@ -110,7 +110,7 @@ func updateDailyCollection(app *pocketbase.PocketBase) { //nolint:gocognit,dupl 
 	}
 }
 
-func updateDailyCollectionETF(app *pocketbase.PocketBase, days int) { //nolint:gocognit,dupl //ignore
+func updateDailyCollectionETF(app *pocketbase.PocketBase, days int) { //nolint:gocognit //ignore
 	var tempStocks = []struct {
 		Code string `db:"code" json:"code"`
 	}{}

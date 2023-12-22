@@ -164,7 +164,8 @@ func cronDailySelectETFUpdate(app *pocketbase.PocketBase) {
 	}
 
 	// 1. Update `daily` collection.
-	updateDailyCollectionETF(app, 14)
+	updatePeriod := 14
+	updateDailyCollectionETF(app, updatePeriod)
 
 	// 3.4 Get latest 180-day `daily` record and groupby code.
 	// xDaysAgo := time.Now().AddDate(0, 0, -180).Format("2006-01-02 15:04:05.000Z")
