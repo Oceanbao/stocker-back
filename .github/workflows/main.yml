@@ -11,8 +11,9 @@ env:
 
 jobs:
   test:
-    runs:
-      - echo $FLY_API_TOKEN
+    steps:
+      runs:
+        - echo $FLY_API_TOKEN
   linting:
     uses: ./.github/workflows/golangci-lint.yml
   build:
