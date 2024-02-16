@@ -3,7 +3,7 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = "stocker-back-damp-resonance-6237"
+app = "stocker-back"
 primary_region = "nrt"
 
 [build]
