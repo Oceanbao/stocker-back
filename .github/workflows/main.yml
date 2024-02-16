@@ -11,6 +11,7 @@ env:
 
 jobs:
   test:
+    runs-on: ubuntu-latest
     steps:
       - name: secret
         run: echo $FLY_API_TOKEN
