@@ -2,17 +2,22 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
 
+	"example.com/stocker-back/internal/infra"
+	"example.com/stocker-back/internal/usecase"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/cron"
 )
 
 type Application struct {
-	pb     *pocketbase.PocketBase
-	logger *slog.Logger
+	pb      *pocketbase.PocketBase
+	logger  *slog.Logger
+	command usecase.Command
 }
 
 func main() {
@@ -31,10 +36,18 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, loggingOpt))
 
+	pb := pocketbase.New()
+
+	repoStock := infra.NewStockRepositoryPB(pb)
+	loggerSlog := infra.NewLoggerSlog(logger)
+	usecaseCommand := usecase.NewCommand(repoStock, loggerSlog)
+
 	app := Application{
-		pb:     pocketbase.New(),
-		logger: logger,
+		pb:      pb,
+		logger:  logger,
+		command: *usecaseCommand,
 	}
+
 	app.logger.Info("starting app...")
 
 	// // loosely check if it was executed using "go run".
@@ -44,10 +57,6 @@ func main() {
 	// migratecmd.MustRegister(app.pb, app.pb.RootCmd, migratecmd.Config{
 	// 	Automigrate: isGoRun,
 	// })
-
-	// repoStock := infra.NewStockRepositoryPB(app.pb)
-	// loggerSlog := infra.NewLoggerSlog(logger)
-	// usecaseCommand := usecase.NewCommand(repoStock, loggerSlog)
 
 	// ----------------- Route ----------------------
 	app.pb.OnBeforeServe().Add(func(e *core.ServeEvent) error {
@@ -64,39 +73,25 @@ func main() {
 	})
 
 	// ----------------- Cron ----------------------
-	// app.pb.OnBeforeServe().Add(func(e *core.ServeEvent) error {
-	// 	if isDevMode {
-	// 		app.logger.Debug("running in dev mode, turning off CRONs")
-	// 		return nil
-	// 	}
+	app.pb.OnBeforeServe().Add(func(_ *core.ServeEvent) error {
+		if isDevMode {
+			app.logger.Debug("running in dev mode, turning off CRONs")
+			return nil
+		}
 
-	// 	scheduler := cron.New()
+		scheduler := cron.New()
 
-	// 	// Every week Mon-Fri at 10:00 UTC (18:00 Beijing Time)
-	// 	cronSignalDailyPriceUpdate := "0 10 * * 1-5"
-	// 	err := scheduler.Add("daily", cronSignalDailyPriceUpdate, app.cronDailyPriceUpdate)
-	// 	if err != nil {
-	// 		return fmt.Errorf("error in adding cron job `dailyPrice`: %w", err)
-	// 	}
+		// Every week Mon-Fri at 10:00 UTC (18:00 Beijing Time)
+		cronSignalDailyDataUpdate := "0 10 * * 1-5"
+		err := scheduler.Add("dailydata", cronSignalDailyDataUpdate, app.cronDailyDataUpdate)
+		if err != nil {
+			return fmt.Errorf("error in adding cron job `cronSignalDailyDataUpdate`: %w", err)
+		}
 
-	// 	// Every week Mon-Fri at 10:15 UTC (18:15 Beijing Time)
-	// 	cronSignalDailySelectETFUpdate := "15 10 * * 1-5"
-	// 	err = scheduler.Add("daily-etf", cronSignalDailySelectETFUpdate, app.cronDailySelectETFUpdate)
-	// 	if err != nil {
-	// 		return fmt.Errorf("error in adding cron job `dailyPriceETF`: %w", err)
-	// 	}
+		scheduler.Start()
 
-	// 	// Every week Mon-Fri at 10:20 UTC (18:20 Beijing Time)
-	// 	cronSignalDailyTallyUpdate := "20 10 * * 1-5"
-	// 	err = scheduler.Add("daily-tally", cronSignalDailyTallyUpdate, app.cronDailyTallyUpdate)
-	// 	if err != nil {
-	// 		return fmt.Errorf("error in adding cron job `dailyTally`: %w", err)
-	// 	}
-
-	// 	scheduler.Start()
-
-	// 	return nil
-	// })
+		return nil
+	})
 
 	if err := app.pb.Start(); err != nil {
 		log.Fatal(err)

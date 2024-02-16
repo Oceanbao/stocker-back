@@ -27,10 +27,19 @@ type FormedDailyCrawl struct {
 	Ohlc   []stock.OHLC
 }
 
+type CrawlService struct {
+	logger Logger
+}
+
+func NewCrawlService(logger Logger) *CrawlService {
+	return &CrawlService{
+		logger: logger,
+	}
+}
+
 // CrawlDailyDataToDate concurrently crawls and produces DailyData for each up to date.
-func CrawlDailyDataToDate(dailyDataToCrawl []stock.DailyData) []stock.DailyData {
-	// numJobs := len(dailyDataToCrawl)
-	numJobs := 3
+func (s *CrawlService) CrawlDailyDataToDate(dailyDataToCrawl []stock.DailyData) []stock.DailyData {
+	numJobs := len(dailyDataToCrawl)
 	chanJobs := make(chan stock.DailyData, numJobs)
 	chanResults := make(chan FormedDailyCrawl, numJobs)
 	concurrency := 3
@@ -48,6 +57,7 @@ func CrawlDailyDataToDate(dailyDataToCrawl []stock.DailyData) []stock.DailyData 
 						Ticker: "",
 						Ohlc:   nil,
 					}
+					s.logger.Debugf("CRAWL", "fail", stockToCrawl.Ticker, "error", err.Error())
 					continue
 				}
 				// No new klines for this stock and startDate.
@@ -56,9 +66,11 @@ func CrawlDailyDataToDate(dailyDataToCrawl []stock.DailyData) []stock.DailyData 
 						Ticker: "",
 						Ohlc:   nil,
 					}
+					s.logger.Debugf("CRAWL", "nil", stockToCrawl.Ticker, "message", "no new daily")
 					continue
 				}
 
+				s.logger.Debugf("CRAWL", "ok", stockToCrawl.Ticker, "len of daily", len(rawDaily.Data.Klines))
 				candles := rawDailyDataToOHLC(rawDaily)
 
 				out <- FormedDailyCrawl{

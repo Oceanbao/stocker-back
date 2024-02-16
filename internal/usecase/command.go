@@ -29,12 +29,9 @@ func (c *Command) UpdateDailyData() error {
 	}
 
 	c.logger.Debugf("UpdateDailyData()", "message", "crawl...")
-	dailyDataNew := common.CrawlDailyDataToDate(dailyDataToCrawl)
+	crawlService := common.NewCrawlService(c.logger)
+	dailyDataNew := crawlService.CrawlDailyDataToDate(dailyDataToCrawl)
 	c.logger.Debugf("total crawled: [%d]", len(dailyDataNew))
-
-	for _, val := range dailyDataNew {
-		c.logger.Debugf("CRAWLED", "ticker", val.Ticker, "date", val.Date)
-	}
 
 	if err = c.repoStock.SetDailyData(dailyDataNew); err != nil {
 		return err
