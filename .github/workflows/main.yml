@@ -1,0 +1,15 @@
+name: main
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  linting:
+    uses: ./.github/workflows/golangci-lint.yml
+  build:
+    uses: ./.github/workflows/build.yml
+  deploy:
+    uses: ./.github/workflows/fly.yml

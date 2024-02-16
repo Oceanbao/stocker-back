@@ -73,6 +73,8 @@ tasks:
     desc: Build program in Dockerfile.
     cmds:
       - CGO_ENABLED=0 go build -ldflags="{{.LINKER_FLAG}}" -o=./bin/app ./cmd/app
+    vars:
+      LINKER_FLAG: -s -w
 
   vendor:
     desc: Run vendor with mod tidy and verify.
