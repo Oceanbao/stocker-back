@@ -11,5 +11,7 @@ jobs:
     uses: ./.github/workflows/golangci-lint.yml
   build:
     uses: ./.github/workflows/build.yml
+    needs: [linting]
   deploy:
     uses: ./.github/workflows/fly.yml
+    needs: [build]
