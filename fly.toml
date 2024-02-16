@@ -1,7 +1,7 @@
 # fly.toml app configuration file generated for stocker-back on 2024-02-16T23:48:41+08:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# Fuck this.
 
 app = "stocker-back"
 primary_region = "nrt"
