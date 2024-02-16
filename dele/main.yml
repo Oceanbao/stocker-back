@@ -10,11 +10,6 @@ env:
   FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: secret
-        run: echo $FLY_API_TOKEN
   linting:
     uses: ./.github/workflows/golangci-lint.yml
   build:
