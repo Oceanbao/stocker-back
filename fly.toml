@@ -1,9 +1,4 @@
-# fly.toml app configuration file generated for stocker-back-damp-resonance-6237 on 2024-02-16T17:56:19+08:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
-app = "stocker-back-damp-resonance-6237"
+app = "stocker-back"
 primary_region = "nrt"
 
 [build]

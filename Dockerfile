@@ -30,7 +30,7 @@ RUN task gobuild-docker
 # RUN set -x && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
 #   ca-certificates && \
 #   rm -rf /var/lib/apt/lists/*
-FROM scratch
+FROM alpine
 
 # Copy the binary to the production image from the builder stage.
 COPY --from=builder /app/bin/app /app/server
