@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 
+	"example.com/stocker-back/internal/common"
 	"example.com/stocker-back/internal/infra"
 	"example.com/stocker-back/internal/usecase"
 	"github.com/pocketbase/pocketbase"
@@ -15,9 +16,10 @@ import (
 )
 
 type Application struct {
-	pb      *pocketbase.PocketBase
-	logger  *slog.Logger
-	command usecase.Command
+	pb       *pocketbase.PocketBase
+	logger   *slog.Logger
+	command  usecase.Command
+	notifier common.Notifier
 }
 
 func main() {
@@ -38,14 +40,20 @@ func main() {
 
 	pb := pocketbase.New()
 
+	notifierPushbullet, err := infra.NewNotifierPushbullet()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	repoStock := infra.NewStockRepositoryPB(pb)
 	loggerSlog := infra.NewLoggerSlog(logger)
-	usecaseCommand := usecase.NewCommand(repoStock, loggerSlog)
+	usecaseCommand := usecase.NewCommand(repoStock, loggerSlog, notifierPushbullet)
 
 	app := Application{
-		pb:      pb,
-		logger:  logger,
-		command: *usecaseCommand,
+		pb:       pb,
+		logger:   logger,
+		command:  *usecaseCommand,
+		notifier: notifierPushbullet,
 	}
 
 	app.logger.Info("starting app...")
@@ -64,6 +72,7 @@ func main() {
 		// e.Router.Use(apis.RequireRecordAuth("user"))
 
 		e.Router.GET("/dele", app.deleHandler)
+		e.Router.GET("/once", app.onceHandler)
 
 		// e.Router.GET("/track", app.getTrackHandler, apis.RequireRecordAuth("users"))
 		// e.Router.GET("/update-daily", app.updateDailyHandler, apis.RequireRecordAuth("users"))
@@ -74,10 +83,10 @@ func main() {
 
 	// ----------------- Cron ----------------------
 	app.pb.OnBeforeServe().Add(func(_ *core.ServeEvent) error {
-		if isDevMode {
-			app.logger.Debug("running in dev mode, turning off CRONs")
-			return nil
-		}
+		// if isDevMode {
+		// 	app.logger.Debug("running in dev mode, turning off CRONs")
+		// 	return nil
+		// }
 
 		scheduler := cron.New()
 
@@ -87,6 +96,7 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("error in adding cron job `cronSignalDailyDataUpdate`: %w", err)
 		}
+		app.logger.Info("cron", "messge", "cronSignalDailyDataUpdate registered")
 
 		scheduler.Start()
 

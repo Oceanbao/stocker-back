@@ -42,10 +42,16 @@ func OHLC2Low(candles []OHLC) []float64 {
 
 // DailyData is the aggregate valueobject for all daily time serie data.
 type DailyData struct {
-	Ticker string  `db:"ticker" json:"ticker"`
-	Date   string  `db:"date" json:"date"`
-	Open   float64 `db:"open" json:"open"`
-	High   float64 `db:"high" json:"high"`
-	Low    float64 `db:"low" json:"low"`
-	Close  float64 `db:"close" json:"close"`
+	Ticker     string  `db:"ticker" json:"ticker"`
+	Date       string  `db:"date" json:"date"`
+	Open       float64 `db:"open" json:"open"`
+	High       float64 `db:"high" json:"high"`
+	Low        float64 `db:"low" json:"low"`
+	Close      float64 `db:"close" json:"close"`
+	Volume     float64 `db:"volume" json:"volume"`
+	Value      float64 `db:"value" json:"value"`
+	Volatility float64 `db:"volatility" json:"volatility"`
+	Pchange    float64 `db:"pchange" json:"pchange"`
+	Change     float64 `db:"change" json:"change"`
+	Turnover   float64 `db:"turnover" json:"turnover"`
 }
