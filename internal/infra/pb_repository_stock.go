@@ -31,6 +31,13 @@ type RecordDailyData struct {
 	High  float64 `db:"high" json:"high"`
 	Low   float64 `db:"low" json:"low"`
 	Close float64 `db:"close" json:"close"`
+
+	Volume     float64 `db:"volume" json:"volume"`
+	Value      float64 `db:"value" json:"value"`
+	Volatility float64 `db:"volatility" json:"volatility"`
+	Pchange    float64 `db:"pchange" json:"pchange"`
+	Change     float64 `db:"change" json:"change"`
+	Turnover   float64 `db:"turnover" json:"turnover"`
 }
 
 func (r RecordDailyData) ToMap() map[string]any {
@@ -42,17 +49,30 @@ func (r RecordDailyData) ToMap() map[string]any {
 		"high":  r.High,
 		"low":   r.Low,
 		"close": r.Close,
+
+		"volume":     r.Volume,
+		"value":      r.Value,
+		"volatility": r.Volatility,
+		"pchange":    r.Pchange,
+		"change":     r.Change,
+		"turnover":   r.Turnover,
 	}
 }
 
 func (r RecordDailyData) ToModel() stock.DailyData {
 	return stock.DailyData{
-		Ticker: r.Ticker,
-		Date:   r.Date,
-		Open:   r.Open,
-		High:   r.High,
-		Low:    r.Low,
-		Close:  r.Close,
+		Ticker:     r.Ticker,
+		Date:       r.Date,
+		Open:       r.Open,
+		High:       r.High,
+		Low:        r.Low,
+		Close:      r.Close,
+		Volume:     r.Volume,
+		Value:      r.Value,
+		Volatility: r.Volatility,
+		Pchange:    r.Pchange,
+		Change:     r.Change,
+		Turnover:   r.Turnover,
 	}
 }
 
@@ -132,5 +152,12 @@ func convertDailyDataToRecord(dailyData stock.DailyData) RecordDailyData {
 		High:  dailyData.High,
 		Low:   dailyData.Low,
 		Close: dailyData.Close,
+
+		Volume:     dailyData.Volume,
+		Value:      dailyData.Value,
+		Volatility: dailyData.Volatility,
+		Pchange:    dailyData.Pchange,
+		Change:     dailyData.Change,
+		Turnover:   dailyData.Turnover,
 	}
 }

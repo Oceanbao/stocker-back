@@ -22,9 +22,62 @@ type RawDailyCrawl struct {
 	} `json:"data"`
 }
 
+func (raw *RawDailyCrawl) ToDailyData() FormedDailyCrawl {
+	ticker := fmt.Sprintf("%v.%v", raw.Data.Market, raw.Data.Code)
+	dailyDataAll := make([]stock.DailyData, 0, len(raw.Data.Klines))
+
+	for _, data := range raw.Data.Klines {
+		parts := strings.Split(data, ",")
+
+		var dailyData stock.DailyData
+
+		dailyData.Ticker = ticker
+
+		dailyData.Date = parts[0]
+
+		var num float64
+		// Open
+		num, _ = strconv.ParseFloat(parts[1], 64)
+		dailyData.Open = num
+		// Close
+		num, _ = strconv.ParseFloat(parts[2], 64)
+		dailyData.Close = num
+		// High
+		num, _ = strconv.ParseFloat(parts[3], 64)
+		dailyData.High = num
+		// Low
+		num, _ = strconv.ParseFloat(parts[4], 64)
+		dailyData.Low = num
+		// Volume
+		num, _ = strconv.ParseFloat(parts[5], 64)
+		dailyData.Volume = num
+		// Value
+		num, _ = strconv.ParseFloat(parts[6], 64)
+		dailyData.Value = num
+		// Volatility
+		num, _ = strconv.ParseFloat(parts[7], 64)
+		dailyData.Volatility = num
+		// % Change
+		num, _ = strconv.ParseFloat(parts[8], 64)
+		dailyData.Pchange = num
+		// Change
+		num, _ = strconv.ParseFloat(parts[9], 64)
+		dailyData.Change = num
+		// % Turnover
+		num, _ = strconv.ParseFloat(parts[10], 64)
+		dailyData.Turnover = num
+
+		dailyDataAll = append(dailyDataAll, dailyData)
+	}
+	return FormedDailyCrawl{
+		Ticker:    ticker,
+		DailyData: dailyDataAll,
+	}
+}
+
 type FormedDailyCrawl struct {
-	Ticker string
-	Ohlc   []stock.OHLC
+	Ticker    string
+	DailyData []stock.DailyData
 }
 
 type CrawlService struct {
@@ -46,39 +99,35 @@ func (s *CrawlService) CrawlDailyDataToDate(dailyDataToCrawl []stock.DailyData) 
 	secondThrottled := 3
 
 	for range lo.Range(concurrency) {
-		go func(in <-chan stock.DailyData, out chan<- FormedDailyCrawl) {
-			for stockToCrawl := range in {
+		go func() {
+			for stockToCrawl := range chanJobs {
 				time.Sleep(time.Second * time.Duration(secondThrottled))
 				lastDate, _ := time.Parse(DateLayoutPocketbase, stockToCrawl.Date)
 				startDate := lastDate.AddDate(0, 0, 1)
 				rawDaily, err := crawlDailyByTicker(stockToCrawl.Ticker, startDate)
 				if err != nil {
-					out <- FormedDailyCrawl{
-						Ticker: "",
-						Ohlc:   nil,
+					chanResults <- FormedDailyCrawl{
+						Ticker:    "",
+						DailyData: nil,
 					}
 					s.logger.Debugf("CRAWL", "fail", stockToCrawl.Ticker, "error", err.Error())
 					continue
 				}
 				// No new klines for this stock and startDate.
 				if len(rawDaily.Data.Klines) == 0 {
-					out <- FormedDailyCrawl{
-						Ticker: "",
-						Ohlc:   nil,
+					chanResults <- FormedDailyCrawl{
+						Ticker:    "",
+						DailyData: nil,
 					}
 					s.logger.Debugf("CRAWL", "nil", stockToCrawl.Ticker, "message", "no new daily")
 					continue
 				}
 
 				s.logger.Debugf("CRAWL", "ok", stockToCrawl.Ticker, "len of daily", len(rawDaily.Data.Klines))
-				candles := rawDailyDataToOHLC(rawDaily)
 
-				out <- FormedDailyCrawl{
-					Ticker: stockToCrawl.Ticker,
-					Ohlc:   candles,
-				}
+				chanResults <- rawDaily.ToDailyData()
 			}
-		}(chanJobs, chanResults)
+		}()
 	}
 
 	for _, job := range dailyDataToCrawl[:numJobs] {
@@ -88,19 +137,9 @@ func (s *CrawlService) CrawlDailyDataToDate(dailyDataToCrawl []stock.DailyData) 
 
 	var output []stock.DailyData
 	for range numJobs {
-		result := <-chanResults
-		if result.Ticker != "" {
-			for _, val := range result.Ohlc {
-				dailyData := stock.DailyData{
-					Ticker: result.Ticker,
-					Date:   val.Date,
-					Open:   val.Open,
-					High:   val.High,
-					Low:    val.Low,
-					Close:  val.Close,
-				}
-				output = append(output, dailyData)
-			}
+		formedDailyCrawl := <-chanResults
+		if formedDailyCrawl.Ticker != "" {
+			output = append(output, formedDailyCrawl.DailyData...)
 		}
 	}
 
@@ -110,17 +149,15 @@ func (s *CrawlService) CrawlDailyDataToDate(dailyDataToCrawl []stock.DailyData) 
 // crawlDailyByTicker crawls the last days raw daily data for a given ticker.
 func crawlDailyByTicker(ticker string, startDate time.Time) (RawDailyCrawl, error) {
 	startDateFormated := startDate.Format(DateLayoutNewOriental)
-
 	url := fmt.Sprintf(
-		"https://54.push2his.eastmoney.com/api/qt/stock/kline/get?"+
-			"cb=jQuery35106707668456928451_1695010059469"+
+		"https://push2his.eastmoney.com/api/qt/stock/kline/get?"+
+			"cb=jQuery35104990802373722225_1708415137417"+
 			"&secid=%s"+
 			"&ut=fa5fd1943c7b386f172d6893dbfba10b"+
 			"&fields1=f1%%2Cf2%%2Cf3%%2Cf4%%2Cf5%%2Cf6"+
 			"&fields2=f51%%2Cf52%%2Cf53%%2Cf54%%2Cf55%%2Cf56%%2Cf57%%2Cf58%%2Cf59%%2Cf60%%2Cf61"+
 			"&klt=101&fqt=1"+
-			"&beg=%s&end=21000101"+
-			"&lmt=1000&_=1695010059524", ticker, startDateFormated,
+			"&beg=%s&end=21000101", ticker, startDateFormated,
 	)
 
 	timeout := 10
@@ -176,29 +213,4 @@ func sliceStringByChar(input, startChar, endChar string) string {
 	}
 
 	return input[startIndex+1 : endIndex]
-}
-
-func rawDailyDataToOHLC(rawDaily RawDailyCrawl) []stock.OHLC {
-	ohlc := make([]stock.OHLC, len(rawDaily.Data.Klines))
-
-	for idx, data := range rawDaily.Data.Klines {
-		parts := strings.Split(data, ",")
-
-		ohlc[idx].Date = parts[0]
-
-		var num float64
-		num, _ = strconv.ParseFloat(parts[1], 64)
-		ohlc[idx].Open = num
-
-		num, _ = strconv.ParseFloat(parts[2], 64)
-		ohlc[idx].Close = num
-
-		num, _ = strconv.ParseFloat(parts[3], 64)
-		ohlc[idx].High = num
-
-		num, _ = strconv.ParseFloat(parts[4], 64)
-		ohlc[idx].Low = num
-	}
-
-	return ohlc
 }
