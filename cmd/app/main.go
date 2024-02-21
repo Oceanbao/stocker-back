@@ -17,8 +17,9 @@ import (
 
 type Application struct {
 	pb       *pocketbase.PocketBase
-	logger   *slog.Logger
 	command  usecase.Command
+	query    usecase.Query
+	logger   *slog.Logger
 	notifier common.Notifier
 }
 
@@ -49,11 +50,13 @@ func main() {
 	repoScreen := infra.NewScreenRepositoryPB(pb)
 	loggerSlog := infra.NewLoggerSlog(logger)
 	usecaseCommand := usecase.NewCommand(repoStock, repoScreen, loggerSlog, notifierPushbullet)
+	usecaseQuery := usecase.NewQuery(repoStock, repoScreen, loggerSlog, notifierPushbullet)
 
 	app := Application{
 		pb:       pb,
-		logger:   logger,
 		command:  *usecaseCommand,
+		query:    *usecaseQuery,
+		logger:   logger,
 		notifier: notifierPushbullet,
 	}
 
@@ -75,6 +78,10 @@ func main() {
 		e.Router.GET("/dele", app.deleHandler)
 		e.Router.GET("/once", app.onceHandler)
 
+		e.Router.GET("/stocks/search", app.stockSearchHandler)
+		// e.Router.POST("/stocks/create", app.stockCreateHandler)
+		// e.Router.POST("/stocks/delete", app.stockDeleteHandler)
+
 		// e.Router.GET("/track", app.getTrackHandler, apis.RequireRecordAuth("users"))
 		// e.Router.GET("/update-daily", app.updateDailyHandler, apis.RequireRecordAuth("users"))
 		// e.Router.GET("/update-daily-etf", app.updateDailyETFHandler, apis.RequireRecordAuth("users"))
@@ -84,20 +91,33 @@ func main() {
 
 	// ----------------- Cron ----------------------
 	app.pb.OnBeforeServe().Add(func(_ *core.ServeEvent) error {
-		// if isDevMode {
-		// 	app.logger.Debug("running in dev mode, turning off CRONs")
-		// 	return nil
-		// }
+		if isDevMode {
+			app.logger.Debug("running in dev mode, turning off CRONs")
+			return nil
+		}
 
 		scheduler := cron.New()
 
 		// Every week Mon-Fri at 10:00 UTC (18:00 Beijing Time)
-		cronSignalDailyDataUpdate := "0 10 * * 1-5"
-		err := scheduler.Add("dailydata", cronSignalDailyDataUpdate, app.cronDailyDataUpdate)
+		err := scheduler.Add("dailydata", "0 10 * * 1-5", app.cronDailyDataUpdate)
 		if err != nil {
 			return fmt.Errorf("error in adding cron job `cronSignalDailyDataUpdate`: %w", err)
 		}
 		app.logger.Info("cron", "messge", "cronSignalDailyDataUpdate registered")
+
+		// Every week Mon-Fri at 11:00 UTC (19:00 Beijing Time)
+		err = scheduler.Add("dailyscreen", "0 11 * * 1-5", app.cronDailyScreening)
+		if err != nil {
+			return fmt.Errorf("error in adding cron job `cronDailyScreening`: %w", err)
+		}
+		app.logger.Info("cron", "messge", "cronDailyScreening registered")
+
+		// Every week Fri at 12:00 UTC (20:00 Beijing Time)
+		err = scheduler.Add("weeklystocks", "0 12 * * 5", app.cronWeeklyStocksUpdate)
+		if err != nil {
+			return fmt.Errorf("error in adding cron job `cronWeeklyStocksUpdate`: %w", err)
+		}
+		app.logger.Info("cron", "messge", "cronWeeklyStocksUpdate registered")
 
 		scheduler.Start()
 

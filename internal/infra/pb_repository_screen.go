@@ -65,6 +65,7 @@ func (repo *ScreenRepositoryPB) SetScreenAll(screens []screener.Screen) error {
 
 			err = txDao.SaveRecord(record)
 			if err != nil {
+				repo.pb.Logger().Error("cannot write to `screen`", "error", err.Error())
 				continue
 			}
 		}

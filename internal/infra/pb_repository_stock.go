@@ -2,6 +2,7 @@ package infra
 
 import (
 	"example.com/stocker-back/internal/stock"
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/daos"
 	"github.com/pocketbase/pocketbase/models"
@@ -19,8 +20,55 @@ func NewStockRepositoryPB(pb *pocketbase.PocketBase) *StockRepositoryPB {
 }
 
 type RecordStock struct {
-	Ticker string `db:"ticker" json:"ticker"`
-	Name   string `db:"name" json:"name"`
+	Ticker             string  `db:"ticker" json:"ticker"`
+	Name               string  `db:"name" json:"name"`
+	ETF                bool    `db:"etf" json:"etf"`
+	DateOfPublic       string  `db:"dateofpublic" json:"dateofpublic"`
+	EPS                float64 `db:"eps" json:"eps"`
+	UndistProfit       float64 `db:"undistprofit" json:"undistprofit"`
+	TotalShare         float64 `db:"totalshare" json:"totalshare"`
+	TotalShareOut      float64 `db:"totalshareout" json:"totalshareout"`
+	TotalCap           float64 `db:"totalcap" json:"totcalcap"`
+	TradeCap           float64 `db:"tradecap" json:"tradecap"`
+	NetAsset           float64 `db:"netasset" json:"netasset"`
+	NetAssetPerShare   float64 `db:"netassetpershare" json:"netassetpershare"`
+	NetProfit          float64 `db:"netprofit" json:"netprofit"`
+	NetProfitChange    float64 `db:"netprofitchange" json:"netprofitchange"`
+	ProfitMargin       float64 `db:"profitmargin" json:"profitmargin"`
+	PricePerEarning    float64 `db:"priceperearning" json:"priceperearning"`
+	PricePerBook       float64 `db:"priceperbook" json:"priceperbook"`
+	ROE                float64 `db:"roe" json:"roe"`
+	TotalRevenue       float64 `db:"totalrevenue" json:"totalrevenue"`
+	TotalRevenueChange float64 `db:"totalrevenuechange" json:"totalrevenuechange"`
+	GrossProfitMargin  float64 `db:"grossprofitmargin" json:"grossprofitmargin"`
+	DebtRatio          float64 `db:"debtratio" json:"debtratio"`
+}
+
+func (r RecordStock) ToModel() stock.Stock {
+	return stock.Stock{
+		Ticker:             r.Ticker,
+		Name:               r.Name,
+		ETF:                r.ETF,
+		DateOfPublic:       r.DateOfPublic,
+		EPS:                r.EPS,
+		UndistProfit:       r.UndistProfit,
+		TotalShare:         r.TotalShare,
+		TotalShareOut:      r.TotalShareOut,
+		TotalCap:           r.TotalCap,
+		TradeCap:           r.TradeCap,
+		NetAsset:           r.NetAsset,
+		NetAssetPerShare:   r.NetAssetPerShare,
+		NetProfit:          r.NetProfit,
+		NetProfitChange:    r.NetProfitChange,
+		ProfitMargin:       r.ProfitMargin,
+		PricePerEarning:    r.PricePerEarning,
+		PricePerBook:       r.PricePerBook,
+		ROE:                r.ROE,
+		TotalRevenue:       r.TotalRevenue,
+		TotalRevenueChange: r.TotalRevenueChange,
+		GrossProfitMargin:  r.GrossProfitMargin,
+		DebtRatio:          r.DebtRatio,
+	}
 }
 
 type RecordDailyData struct {
@@ -40,25 +88,6 @@ type RecordDailyData struct {
 	Turnover   float64 `db:"turnover" json:"turnover"`
 }
 
-func (r RecordDailyData) ToMap() map[string]any {
-	return map[string]any{
-		"ticker": r.Ticker,
-		"date":   r.Date,
-
-		"open":  r.Open,
-		"high":  r.High,
-		"low":   r.Low,
-		"close": r.Close,
-
-		"volume":     r.Volume,
-		"value":      r.Value,
-		"volatility": r.Volatility,
-		"pchange":    r.Pchange,
-		"change":     r.Change,
-		"turnover":   r.Turnover,
-	}
-}
-
 func (r RecordDailyData) ToModel() stock.DailyData {
 	return stock.DailyData{
 		Ticker:     r.Ticker,
@@ -76,19 +105,63 @@ func (r RecordDailyData) ToModel() stock.DailyData {
 	}
 }
 
-func (repo *StockRepositoryPB) GetStocksAll() ([]stock.Stock, error) {
-	records, err := repo.pb.Dao().FindRecordsByExpr("stocks")
+func (repo *StockRepositoryPB) GetStockByTicker(ticker string) (stock.Stock, error) {
+	var stockFound stock.Stock
+	expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": ticker})
+	err := repo.pb.Dao().DB().Select().From("stocks").Where(expr).One(&stockFound)
 	if err != nil {
-		return []stock.Stock{}, err
+		return stock.NewEmptyStock(), err
 	}
 
-	stocks := make([]stock.Stock, len(records))
-	for idx := range records {
-		stocks[idx].Ticker = records[idx].GetString("code")
-		stocks[idx].Name = records[idx].GetString("name")
+	return stockFound, nil
+}
+
+func (repo *StockRepositoryPB) GetStocksAll() ([]stock.Stock, error) {
+	var records []RecordStock
+
+	err := repo.pb.Dao().DB().
+		Select().
+		From("stocks").
+		All(&records)
+	if err != nil {
+		return nil, err
 	}
 
-	return stocks, nil
+	output := make([]stock.Stock, 0, len(records))
+	for _, s := range records {
+		output = append(output, s.ToModel())
+	}
+
+	return output, nil
+}
+
+func (repo *StockRepositoryPB) SetStocksAll(stocks []stock.Stock) error {
+	err := repo.pb.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+		for _, data := range stocks {
+			expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": data.Ticker})
+			records, err := txDao.FindRecordsByExpr("stocks", expr)
+			if err != nil {
+				repo.pb.Logger().Error("failed to find record from `stocks` - skip", "error", err.Error(), "ticker", data.Ticker)
+				continue
+			}
+
+			recordUnique := records[0]
+			newRecordData := convertStockToMap(data)
+			recordUnique.Load(newRecordData)
+
+			if err = txDao.SaveRecord(recordUnique); err != nil {
+				repo.pb.Logger().Error("cannot write to `stocks`", "error", err.Error())
+				continue
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (repo *StockRepositoryPB) GetDailyDataAll() (map[string][]stock.DailyData, error) {
@@ -151,12 +224,13 @@ func (repo *StockRepositoryPB) SetDailyData(dailyData []stock.DailyData) error {
 
 	err = repo.pb.Dao().RunInTransaction(func(txDao *daos.Dao) error {
 		for _, data := range dailyData {
-			recordData := convertDailyDataToRecord(data).ToMap()
+			recordData := convertDailyDataToRecord(data)
 			record := models.NewRecord(collection)
 			record.Load(recordData)
 
 			err = txDao.SaveRecord(record)
 			if err != nil {
+				repo.pb.Logger().Error("cannot write to `daily`", "error", err.Error())
 				continue
 			}
 		}
@@ -170,21 +244,48 @@ func (repo *StockRepositoryPB) SetDailyData(dailyData []stock.DailyData) error {
 	return nil
 }
 
-func convertDailyDataToRecord(dailyData stock.DailyData) RecordDailyData {
-	return RecordDailyData{
-		Ticker: dailyData.Ticker,
-		Date:   dailyData.Date,
+func convertStockToMap(stock stock.Stock) map[string]any {
+	return map[string]any{
+		"ticker":             stock.Ticker,
+		"name":               stock.Name,
+		"etf":                stock.ETF,
+		"dateofpublic":       stock.DateOfPublic,
+		"eps":                stock.EPS,
+		"undistprofit":       stock.UndistProfit,
+		"totalshare":         stock.TotalShare,
+		"totalshareout":      stock.TotalShareOut,
+		"totalcap":           stock.TotalCap,
+		"tradecap":           stock.TradeCap,
+		"netasset":           stock.NetAsset,
+		"netassetpershare":   stock.NetAssetPerShare,
+		"netprofit":          stock.NetProfit,
+		"netprofitchange":    stock.NetProfitChange,
+		"profitmargin":       stock.ProfitMargin,
+		"priceperearning":    stock.PricePerEarning,
+		"priceperbook":       stock.PricePerBook,
+		"roe":                stock.ROE,
+		"totalrevenue":       stock.TotalRevenue,
+		"totalrevenuechange": stock.TotalRevenueChange,
+		"grossprofitmargin":  stock.GrossProfitMargin,
+		"debtratio":          stock.DebtRatio,
+	}
+}
 
-		Open:  dailyData.Open,
-		High:  dailyData.High,
-		Low:   dailyData.Low,
-		Close: dailyData.Close,
+func convertDailyDataToRecord(dailyData stock.DailyData) map[string]any {
+	return map[string]any{
+		"ticker": dailyData.Ticker,
+		"date":   dailyData.Date,
 
-		Volume:     dailyData.Volume,
-		Value:      dailyData.Value,
-		Volatility: dailyData.Volatility,
-		Pchange:    dailyData.Pchange,
-		Change:     dailyData.Change,
-		Turnover:   dailyData.Turnover,
+		"open":  dailyData.Open,
+		"high":  dailyData.High,
+		"low":   dailyData.Low,
+		"close": dailyData.Close,
+
+		"volume":     dailyData.Volume,
+		"value":      dailyData.Value,
+		"volatility": dailyData.Volatility,
+		"pchange":    dailyData.Pchange,
+		"change":     dailyData.Change,
+		"turnover":   dailyData.Turnover,
 	}
 }

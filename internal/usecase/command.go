@@ -4,8 +4,10 @@ import (
 	"fmt"
 
 	"example.com/stocker-back/internal/common"
+	apieastmoney "example.com/stocker-back/internal/infra/api_eastmoney"
 	"example.com/stocker-back/internal/screener"
 	"example.com/stocker-back/internal/stock"
+	"github.com/samber/lo"
 )
 
 type Command struct {
@@ -24,6 +26,30 @@ func NewCommand(repoStock stock.Repository, repoScreen screener.Repository, logg
 	}
 }
 
+func (c *Command) UpdateStocks() error {
+	c.logger.Debugf("UpdateStocks", "message", "start...")
+	stocksAll, err := c.repoStock.GetStocksAll()
+	if err != nil {
+		return err
+	}
+
+	tickers := lo.Map(stocksAll, func(stock stock.Stock, _ int) string {
+		return stock.Ticker
+	})
+
+	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)
+	stocksAllNew := apiServiceEastmoney.CrawlStock(tickers)
+
+	err = c.repoStock.SetStocksAll(stocksAllNew)
+	if err != nil {
+		c.logger.Errorf("SetStocksAll", "error", err.Error())
+		c.notifier.Sendf("SetStocksAll", err.Error())
+		return err
+	}
+
+	return nil
+}
+
 func (c *Command) UpdateDailyData() error {
 	c.logger.Debugf("UpdateDailyData()", "message", "start...")
 	dailyDataToCrawl, err := c.repoStock.GetDailyDataLastAll()
@@ -31,13 +57,9 @@ func (c *Command) UpdateDailyData() error {
 		return err
 	}
 
-	for _, val := range dailyDataToCrawl {
-		c.logger.Debugf("CHECK", "ticker", val.Ticker, "date", val.Date)
-	}
-
 	c.logger.Debugf("UpdateDailyData()", "message", "crawl...")
-	crawlService := common.NewCrawlService(c.logger)
-	dailyDataNew := crawlService.CrawlDailyDataToDate(dailyDataToCrawl)
+	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)
+	dailyDataNew := apiServiceEastmoney.CrawlDaily(dailyDataToCrawl)
 
 	if err = c.repoStock.SetDailyData(dailyDataNew); err != nil {
 		c.logger.Errorf("SetDailyData()", "error", err.Error())
