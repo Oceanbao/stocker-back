@@ -7,7 +7,7 @@ import (
 )
 
 func (app *Application) deleHandler(c echo.Context) error {
-	err := app.command.UpdateDailyData()
+	err := app.command.UpdateDailyScreen()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]any{"error": err.Error()})
 	}

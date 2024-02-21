@@ -46,8 +46,9 @@ func main() {
 	}
 
 	repoStock := infra.NewStockRepositoryPB(pb)
+	repoScreen := infra.NewScreenRepositoryPB(pb)
 	loggerSlog := infra.NewLoggerSlog(logger)
-	usecaseCommand := usecase.NewCommand(repoStock, loggerSlog, notifierPushbullet)
+	usecaseCommand := usecase.NewCommand(repoStock, repoScreen, loggerSlog, notifierPushbullet)
 
 	app := Application{
 		pb:       pb,

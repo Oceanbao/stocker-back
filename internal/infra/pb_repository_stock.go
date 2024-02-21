@@ -91,6 +91,33 @@ func (repo *StockRepositoryPB) GetStocksAll() ([]stock.Stock, error) {
 	return stocks, nil
 }
 
+func (repo *StockRepositoryPB) GetDailyDataAll() (map[string][]stock.DailyData, error) {
+	var recordDailyData []RecordDailyData
+
+	err := repo.pb.Dao().DB().
+		Select().
+		From("daily").
+		All(&recordDailyData)
+	if err != nil {
+		return nil, err
+	}
+
+	recordGrouped := lo.GroupBy(recordDailyData, func(rec RecordDailyData) string {
+		return rec.Ticker
+	})
+
+	output := make(map[string][]stock.DailyData, len(recordGrouped))
+	for key, val := range recordGrouped {
+		dd := make([]stock.DailyData, 0, len(val))
+		for _, d := range val {
+			dd = append(dd, d.ToModel())
+		}
+		output[key] = dd
+	}
+
+	return output, nil
+}
+
 func (repo *StockRepositoryPB) GetDailyDataLastAll() ([]stock.DailyData, error) {
 	var recordDailyData []RecordDailyData
 
