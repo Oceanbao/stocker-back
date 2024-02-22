@@ -112,3 +112,20 @@ type DailyData struct {
 	Change     float64 `db:"change" json:"change"`
 	Turnover   float64 `db:"turnover" json:"turnover"`
 }
+
+func NewEmptyDailyData() DailyData {
+	return DailyData{
+		Ticker:     "",
+		Date:       "",
+		Open:       0.0,
+		High:       0.0,
+		Low:        0.0,
+		Close:      0.0,
+		Volume:     0.0,
+		Value:      0.0,
+		Volatility: 0.0,
+		Pchange:    0.0,
+		Change:     0.0,
+		Turnover:   0.0,
+	}
+}

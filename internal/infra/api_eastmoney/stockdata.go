@@ -69,8 +69,21 @@ func (raw *RawStockCrawl) ToModel() stock.Stock {
 	}
 }
 
-// CrawlStock concurrently crawls and produces stock.Stock given tickers.
-func (s *APIServiceEastmoney) CrawlStock(tickers []string) []stock.Stock {
+// CrawlStocks concurrently crawls and produces stock.Stock given tickers.
+func (s *APIServiceEastmoney) CrawlStock(ticker string) stock.Stock {
+	rawStock, err := crawlStock(ticker)
+	if err != nil {
+		s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+		return stock.NewEmptyStock()
+	}
+
+	s.logger.Debugf("CRAWL done", "ticker", ticker)
+
+	return rawStock.ToModel()
+}
+
+// CrawlStocks concurrently crawls and produces stock.Stock given tickers.
+func (s *APIServiceEastmoney) CrawlStocks(tickers []string) []stock.Stock {
 	numJobs := len(tickers)
 	chanJobs := make(chan string, numJobs)
 	chanResults := make(chan stock.Stock, numJobs)

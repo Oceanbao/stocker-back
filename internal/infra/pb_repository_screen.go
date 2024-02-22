@@ -52,6 +52,18 @@ func (repo *ScreenRepositoryPB) GetScreenAll() ([]screener.Screen, error) {
 }
 
 func (repo *ScreenRepositoryPB) SetScreenAll(screens []screener.Screen) error {
+	// First clear all records.
+	records, err := repo.pb.Dao().FindRecordsByExpr("screen")
+	if err != nil {
+		return err
+	}
+
+	for _, rec := range records {
+		if err := repo.pb.Dao().DeleteRecord(rec); err != nil {
+			return err
+		}
+	}
+
 	collection, err := repo.pb.Dao().FindCollectionByNameOrId("screen")
 	if err != nil {
 		return err

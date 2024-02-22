@@ -3,7 +3,7 @@ package usecase
 import (
 	"fmt"
 
-	"example.com/stocker-back/internal/common"
+	"example.com/stocker-back/internal/infra"
 	apieastmoney "example.com/stocker-back/internal/infra/api_eastmoney"
 	"example.com/stocker-back/internal/screener"
 	"example.com/stocker-back/internal/stock"
@@ -13,11 +13,11 @@ import (
 type Command struct {
 	repoStock  stock.Repository
 	repoScreen screener.Repository
-	logger     common.Logger
-	notifier   common.Notifier
+	logger     infra.Logger
+	notifier   infra.Notifier
 }
 
-func NewCommand(repoStock stock.Repository, repoScreen screener.Repository, logger common.Logger, notifier common.Notifier) *Command { //nolint:lll
+func NewCommand(repoStock stock.Repository, repoScreen screener.Repository, logger infra.Logger, notifier infra.Notifier) *Command { //nolint:lll
 	return &Command{
 		repoStock:  repoStock,
 		repoScreen: repoScreen,
@@ -28,7 +28,7 @@ func NewCommand(repoStock stock.Repository, repoScreen screener.Repository, logg
 
 func (c *Command) UpdateStocks() error {
 	c.logger.Debugf("UpdateStocks", "message", "start...")
-	stocksAll, err := c.repoStock.GetStocksAll()
+	stocksAll, err := c.repoStock.GetStocks()
 	if err != nil {
 		return err
 	}
@@ -38,9 +38,9 @@ func (c *Command) UpdateStocks() error {
 	})
 
 	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)
-	stocksAllNew := apiServiceEastmoney.CrawlStock(tickers)
+	stocksAllNew := apiServiceEastmoney.CrawlStocks(tickers)
 
-	err = c.repoStock.SetStocksAll(stocksAllNew)
+	err = c.repoStock.SetStocks(stocksAllNew)
 	if err != nil {
 		c.logger.Errorf("SetStocksAll", "error", err.Error())
 		c.notifier.Sendf("SetStocksAll", err.Error())
@@ -59,7 +59,7 @@ func (c *Command) UpdateDailyData() error {
 
 	c.logger.Debugf("UpdateDailyData()", "message", "crawl...")
 	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)
-	dailyDataNew := apiServiceEastmoney.CrawlDaily(dailyDataToCrawl)
+	dailyDataNew := apiServiceEastmoney.CrawlDailyToDate(dailyDataToCrawl)
 
 	if err = c.repoStock.SetDailyData(dailyDataNew); err != nil {
 		c.logger.Errorf("SetDailyData()", "error", err.Error())
@@ -109,6 +109,38 @@ func (c *Command) UpdateDailyScreen() error {
 
 	err = c.repoScreen.SetScreenAll(screens)
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Command) CreateStockAndDailyData(ticker string) error {
+	// Crawl ticker stock.
+	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)
+	stockNew := apiServiceEastmoney.CrawlStock(ticker)
+	// Write db
+	if err := c.repoStock.SetStock(stockNew); err != nil {
+		return err
+	}
+
+	// Crawl ticker dailydata.
+	dailyData := apiServiceEastmoney.CrawlDailyOne(ticker, 200) //nolint:gomnd // ignore
+	// Write db
+	if err := c.repoStock.SetDailyData(dailyData); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Command) DeleteStockByTicker(ticker string) error {
+	// NOTE: need to delete all related collections.
+	if err := c.repoStock.DeleteStockByTicker(ticker); err != nil {
+		return err
+	}
+
+	if err := c.repoStock.DeleteDailyDataByTicker(ticker); err != nil {
 		return err
 	}
 

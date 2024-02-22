@@ -3,14 +3,14 @@ package apieastmoney
 import (
 	"strings"
 
-	"example.com/stocker-back/internal/common"
+	"example.com/stocker-back/internal/infra"
 )
 
 type APIServiceEastmoney struct {
-	logger common.Logger
+	logger infra.Logger
 }
 
-func NewAPIServiceEastmoney(logger common.Logger) *APIServiceEastmoney {
+func NewAPIServiceEastmoney(logger infra.Logger) *APIServiceEastmoney {
 	return &APIServiceEastmoney{
 		logger: logger,
 	}

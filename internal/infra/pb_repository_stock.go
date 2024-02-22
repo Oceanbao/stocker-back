@@ -1,6 +1,8 @@
 package infra
 
 import (
+	"fmt"
+
 	"example.com/stocker-back/internal/stock"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
@@ -116,7 +118,7 @@ func (repo *StockRepositoryPB) GetStockByTicker(ticker string) (stock.Stock, err
 	return stockFound, nil
 }
 
-func (repo *StockRepositoryPB) GetStocksAll() ([]stock.Stock, error) {
+func (repo *StockRepositoryPB) GetStocks() ([]stock.Stock, error) {
 	var records []RecordStock
 
 	err := repo.pb.Dao().DB().
@@ -133,35 +135,6 @@ func (repo *StockRepositoryPB) GetStocksAll() ([]stock.Stock, error) {
 	}
 
 	return output, nil
-}
-
-func (repo *StockRepositoryPB) SetStocksAll(stocks []stock.Stock) error {
-	err := repo.pb.Dao().RunInTransaction(func(txDao *daos.Dao) error {
-		for _, data := range stocks {
-			expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": data.Ticker})
-			records, err := txDao.FindRecordsByExpr("stocks", expr)
-			if err != nil {
-				repo.pb.Logger().Error("failed to find record from `stocks` - skip", "error", err.Error(), "ticker", data.Ticker)
-				continue
-			}
-
-			recordUnique := records[0]
-			newRecordData := convertStockToMap(data)
-			recordUnique.Load(newRecordData)
-
-			if err = txDao.SaveRecord(recordUnique); err != nil {
-				repo.pb.Logger().Error("cannot write to `stocks`", "error", err.Error())
-				continue
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (repo *StockRepositoryPB) GetDailyDataAll() (map[string][]stock.DailyData, error) {
@@ -216,6 +189,54 @@ func (repo *StockRepositoryPB) GetDailyDataLastAll() ([]stock.DailyData, error) 
 	return output, nil
 }
 
+func (repo *StockRepositoryPB) SetStock(stock stock.Stock) error {
+	collection, err := repo.pb.Dao().FindCollectionByNameOrId("stocks")
+	if err != nil {
+		return err
+	}
+
+	model := models.NewRecord(collection)
+	record := convertStockToMap(stock)
+	model.Load(record)
+
+	err = repo.pb.Dao().SaveRecord(model)
+	if err != nil {
+		repo.pb.Logger().Error("cannot write to `stocks`", "error", err.Error())
+		return nil
+	}
+
+	return nil
+}
+
+func (repo *StockRepositoryPB) SetStocks(stocks []stock.Stock) error {
+	err := repo.pb.Dao().RunInTransaction(func(txDao *daos.Dao) error {
+		for _, data := range stocks {
+			expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": data.Ticker})
+			records, err := txDao.FindRecordsByExpr("stocks", expr)
+			if err != nil {
+				repo.pb.Logger().Error("failed to find record from `stocks` - skip", "error", err.Error(), "ticker", data.Ticker)
+				continue
+			}
+
+			recordUnique := records[0]
+			newRecordData := convertStockToMap(data)
+			recordUnique.Load(newRecordData)
+
+			if err = txDao.SaveRecord(recordUnique); err != nil {
+				repo.pb.Logger().Error("cannot write to `stocks`", "error", err.Error())
+				continue
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (repo *StockRepositoryPB) SetDailyData(dailyData []stock.DailyData) error {
 	collection, err := repo.pb.Dao().FindCollectionByNameOrId("daily")
 	if err != nil {
@@ -239,6 +260,44 @@ func (repo *StockRepositoryPB) SetDailyData(dailyData []stock.DailyData) error {
 
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (repo *StockRepositoryPB) DeleteStockByTicker(ticker string) error {
+	expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": ticker})
+	records, err := repo.pb.Dao().FindRecordsByExpr("stocks", expr)
+	if err != nil {
+		return err
+	}
+	if len(records) == 0 {
+		return fmt.Errorf("ticker %v not found in `stocks`", ticker)
+	}
+
+	recordUnique := records[0]
+
+	if err := repo.pb.Dao().DeleteRecord(recordUnique); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (repo *StockRepositoryPB) DeleteDailyDataByTicker(ticker string) error {
+	expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": ticker})
+	records, err := repo.pb.Dao().FindRecordsByExpr("daily", expr)
+	if err != nil {
+		return err
+	}
+	if len(records) == 0 {
+		return fmt.Errorf("ticker %v not found in `daily`", ticker)
+	}
+
+	for _, rec := range records {
+		if err := repo.pb.Dao().DeleteRecord(rec); err != nil {
+			return err
+		}
 	}
 
 	return nil
