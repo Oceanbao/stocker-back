@@ -79,8 +79,21 @@ type FormedDailyCrawl struct {
 	DailyData []stock.DailyData
 }
 
-// CrawlDailyDataToDate concurrently crawls and produces DailyData for each up to date.
-func (s *APIServiceEastmoney) CrawlDaily(dailyDataToCrawl []stock.DailyData) []stock.DailyData {
+// CrawlDailyOne crawls a single ticker with given days.
+func (s *APIServiceEastmoney) CrawlDailyOne(ticker string, days int) []stock.DailyData {
+	todayDate := time.Now()
+	startDate := todayDate.AddDate(0, 0, -days)
+	rawDaily, err := crawlDailyByTicker(ticker, startDate)
+	if err != nil {
+		s.logger.Errorf("CrawlDailyOne", "error", err.Error())
+		return nil
+	}
+
+	return rawDaily.ToDailyData().DailyData
+}
+
+// CrawlDailyToDate concurrently crawls and produces DailyData for each up to date.
+func (s *APIServiceEastmoney) CrawlDailyToDate(dailyDataToCrawl []stock.DailyData) []stock.DailyData {
 	numJobs := len(dailyDataToCrawl)
 	chanJobs := make(chan stock.DailyData, numJobs)
 	chanResults := make(chan FormedDailyCrawl, numJobs)

@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 
-	"example.com/stocker-back/internal/common"
 	"example.com/stocker-back/internal/infra"
 	"example.com/stocker-back/internal/usecase"
 	"github.com/pocketbase/pocketbase"
@@ -20,7 +19,7 @@ type Application struct {
 	command  usecase.Command
 	query    usecase.Query
 	logger   *slog.Logger
-	notifier common.Notifier
+	notifier infra.Notifier
 }
 
 func main() {
@@ -76,11 +75,11 @@ func main() {
 		// e.Router.Use(apis.RequireRecordAuth("user"))
 
 		e.Router.GET("/dele", app.deleHandler)
-		e.Router.GET("/once", app.onceHandler)
+		e.Router.GET("/updatedaily", app.updateDailyData)
 
 		e.Router.GET("/stocks/search", app.stockSearchHandler)
-		// e.Router.POST("/stocks/create", app.stockCreateHandler)
-		// e.Router.POST("/stocks/delete", app.stockDeleteHandler)
+		e.Router.POST("/stocks/create", app.stockCreateHandler)
+		e.Router.POST("/stocks/delete", app.stockDeleteHandler)
 
 		// e.Router.GET("/track", app.getTrackHandler, apis.RequireRecordAuth("users"))
 		// e.Router.GET("/update-daily", app.updateDailyHandler, apis.RequireRecordAuth("users"))

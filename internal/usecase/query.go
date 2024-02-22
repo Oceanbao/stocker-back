@@ -1,7 +1,7 @@
 package usecase
 
 import (
-	"example.com/stocker-back/internal/common"
+	"example.com/stocker-back/internal/infra"
 	"example.com/stocker-back/internal/screener"
 	"example.com/stocker-back/internal/stock"
 )
@@ -9,11 +9,11 @@ import (
 type Query struct {
 	repoStock  stock.Repository
 	repoScreen screener.Repository
-	logger     common.Logger
-	notifier   common.Notifier
+	logger     infra.Logger
+	notifier   infra.Notifier
 }
 
-func NewQuery(repoStock stock.Repository, repoScreen screener.Repository, logger common.Logger, notifier common.Notifier) *Query { //nolint:lll
+func NewQuery(repoStock stock.Repository, repoScreen screener.Repository, logger infra.Logger, notifier infra.Notifier) *Query { //nolint:lll
 	return &Query{
 		repoStock:  repoStock,
 		repoScreen: repoScreen,
