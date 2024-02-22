@@ -51,3 +51,21 @@ func (app *Application) stockDeleteHandler(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]any{"message": "ok"})
 }
+
+func (app *Application) screenUpdateHandler(c echo.Context) error {
+	err := app.command.UpdateDailyScreen()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]any{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{"message": "ok"})
+}
+
+func (app *Application) screenReadHandler(c echo.Context) error {
+	data, err := app.query.GetScreens()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]any{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{"screens": data})
+}

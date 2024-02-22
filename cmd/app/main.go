@@ -76,14 +76,13 @@ func main() {
 
 		e.Router.GET("/dele", app.deleHandler)
 		e.Router.GET("/updatedaily", app.updateDailyData)
+		e.Router.GET("/updatescreen", app.screenUpdateHandler)
 
 		e.Router.GET("/stocks/search", app.stockSearchHandler)
 		e.Router.POST("/stocks/create", app.stockCreateHandler)
 		e.Router.POST("/stocks/delete", app.stockDeleteHandler)
 
-		// e.Router.GET("/track", app.getTrackHandler, apis.RequireRecordAuth("users"))
-		// e.Router.GET("/update-daily", app.updateDailyHandler, apis.RequireRecordAuth("users"))
-		// e.Router.GET("/update-daily-etf", app.updateDailyETFHandler, apis.RequireRecordAuth("users"))
+		e.Router.GET("/screen", app.screenReadHandler)
 
 		return nil
 	})

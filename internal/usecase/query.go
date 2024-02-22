@@ -22,11 +22,42 @@ func NewQuery(repoStock stock.Repository, repoScreen screener.Repository, logger
 	}
 }
 
-func (c *Query) GetStockByTicker(ticker string) (stock.Stock, error) {
-	stockFound, err := c.repoStock.GetStockByTicker(ticker)
+func (q *Query) GetStockByTicker(ticker string) (stock.Stock, error) {
+	stockFound, err := q.repoStock.GetStockByTicker(ticker)
 	if err != nil {
 		return stock.NewEmptyStock(), err
 	}
 
 	return stockFound, nil
+}
+
+func (q *Query) GetScreens() ([]map[string]interface{}, error) {
+	screens, err := q.repoScreen.GetScreens()
+	if err != nil {
+		return nil, err
+	}
+
+	var output []map[string]interface{}
+	for _, s := range screens {
+		if s.Kdj <= 30 { //nolint:gomnd // ignore
+			m := make(map[string]interface{})
+			m["kdj"] = s.Kdj
+
+			stock, err := q.repoStock.GetStockByTicker(s.Ticker)
+			if err != nil {
+				continue
+			}
+			m["stock"] = stock
+
+			dailyData, err := q.repoStock.GetDailyDataLastByTicker(s.Ticker)
+			if err != nil {
+				continue
+			}
+			m["daily"] = dailyData
+
+			output = append(output, m)
+		}
+	}
+
+	return output, nil
 }

@@ -1,6 +1,6 @@
 package screener
 
 type Repository interface {
-	GetScreenAll() ([]Screen, error)
-	SetScreenAll([]Screen) error
+	GetScreens() ([]Screen, error)
+	SetScreens([]Screen) error
 }

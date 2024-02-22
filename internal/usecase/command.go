@@ -107,7 +107,7 @@ func (c *Command) UpdateDailyScreen() error {
 		})
 	}
 
-	err = c.repoScreen.SetScreenAll(screens)
+	err = c.repoScreen.SetScreens(screens)
 	if err != nil {
 		return err
 	}
