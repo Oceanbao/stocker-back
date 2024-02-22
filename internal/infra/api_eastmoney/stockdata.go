@@ -71,8 +71,7 @@ func (raw *RawStockCrawl) ToModel() stock.Stock {
 
 // CrawlStock concurrently crawls and produces stock.Stock given tickers.
 func (s *APIServiceEastmoney) CrawlStock(tickers []string) []stock.Stock {
-	// numJobs := len(tickers)
-	numJobs := 3
+	numJobs := len(tickers)
 	chanJobs := make(chan string, numJobs)
 	chanResults := make(chan stock.Stock, numJobs)
 	concurrency := 3
