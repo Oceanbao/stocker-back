@@ -1,6 +1,9 @@
 package infra
 
 import (
+	"cmp"
+	"slices"
+
 	"example.com/stocker-back/internal/screener"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/daos"
@@ -36,7 +39,7 @@ func (r RecordScreen) ToModel() screener.Screen {
 	}
 }
 
-func (repo *ScreenRepositoryPB) GetScreenAll() ([]screener.Screen, error) {
+func (repo *ScreenRepositoryPB) GetScreens() ([]screener.Screen, error) {
 	records, err := repo.pb.Dao().FindRecordsByExpr("screen")
 	if err != nil {
 		return []screener.Screen{}, err
@@ -48,10 +51,15 @@ func (repo *ScreenRepositoryPB) GetScreenAll() ([]screener.Screen, error) {
 		screens[idx].Kdj = records[idx].GetFloat("kdj")
 	}
 
+	// Sort ascending.
+	slices.SortFunc(screens, func(a, b screener.Screen) int {
+		return cmp.Compare(a.Kdj, b.Kdj)
+	})
+
 	return screens, nil
 }
 
-func (repo *ScreenRepositoryPB) SetScreenAll(screens []screener.Screen) error {
+func (repo *ScreenRepositoryPB) SetScreens(screens []screener.Screen) error {
 	// First clear all records.
 	records, err := repo.pb.Dao().FindRecordsByExpr("screen")
 	if err != nil {

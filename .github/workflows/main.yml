@@ -12,8 +12,3 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
     needs: [linting]
-  deploy:
-    uses: ./.github/workflows/fly.yml
-    secrets:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-    needs: [build]

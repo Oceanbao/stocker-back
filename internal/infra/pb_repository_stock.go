@@ -163,6 +163,21 @@ func (repo *StockRepositoryPB) GetDailyDataAll() (map[string][]stock.DailyData, 
 
 	return output, nil
 }
+func (repo *StockRepositoryPB) GetDailyDataLastByTicker(ticker string) (stock.DailyData, error) {
+	var records []RecordDailyData
+
+	err := repo.pb.Dao().DB().
+		Select().
+		From("daily").
+		Where(dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": ticker})).
+		OrderBy("date DESC").
+		All(&records)
+	if err != nil {
+		return stock.NewEmptyDailyData(), err
+	}
+
+	return records[0].ToModel(), nil
+}
 
 func (repo *StockRepositoryPB) GetDailyDataLastAll() ([]stock.DailyData, error) {
 	var recordDailyData []RecordDailyData
