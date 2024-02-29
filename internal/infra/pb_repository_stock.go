@@ -280,42 +280,52 @@ func (repo *StockRepositoryPB) SetDailyData(dailyData []stock.DailyData) error {
 	return nil
 }
 
+// DeleteStockByTicker deletes `ticker` records everywhere in the database.
 func (repo *StockRepositoryPB) DeleteStockByTicker(ticker string) error {
-	expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": ticker})
-	records, err := repo.pb.Dao().FindRecordsByExpr("stocks", expr)
+	repo.pb.Logger().Info("DeleteStockByTicker", "ticker", ticker)
+	collections, err := repo.pb.Dao().FindCollectionsByType(models.CollectionTypeBase)
 	if err != nil {
 		return err
 	}
-	if len(records) == 0 {
-		return fmt.Errorf("ticker %v not found in `stocks`", ticker)
+
+	for _, c := range collections {
+		if !fieldInCollection(repo.pb.Dao(), "ticker", c) {
+			continue
+		}
+		if err := deleteRecords(repo.pb.Dao(), c.Name, "ticker", ticker); err != nil {
+			repo.pb.Logger().Info("deleteRecords", "error", err.Error())
+			return err
+		}
 	}
 
-	recordUnique := records[0]
+	return nil
+}
 
-	if err := repo.pb.Dao().DeleteRecord(recordUnique); err != nil {
+// deleteRecords deletes all records in `collectionName` where `fieldName` = `fieldValue`.
+func deleteRecords(dao *daos.Dao, collectionName, fieldName, fieldValue string) error {
+	query := fmt.Sprintf("DELETE FROM %v WHERE %v = '%v'", collectionName, fieldName, fieldValue)
+	if _, err := dao.DB().NewQuery(query).Execute(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (repo *StockRepositoryPB) DeleteDailyDataByTicker(ticker string) error {
-	expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": ticker})
-	records, err := repo.pb.Dao().FindRecordsByExpr("daily", expr)
-	if err != nil {
-		return err
+// fieldInCollection checks if `field` is in `collection`.
+func fieldInCollection(dao *daos.Dao, field string, collection *models.Collection) bool {
+	record := models.Record{
+		BaseModel: collection.BaseModel,
 	}
-	if len(records) == 0 {
-		return fmt.Errorf("ticker %v not found in `daily`", ticker)
-	}
-
-	for _, rec := range records {
-		if err := repo.pb.Dao().DeleteRecord(rec); err != nil {
-			return err
-		}
+	query := dao.RecordQuery(collection.Name).Limit(1)
+	if err := query.One(&record); err != nil {
+		return false
 	}
 
-	return nil
+	if record.Get(field) != nil {
+		return true
+	}
+
+	return false
 }
 
 func convertStockToMap(stock stock.Stock) map[string]any {

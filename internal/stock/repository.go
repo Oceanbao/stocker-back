@@ -12,5 +12,4 @@ type Repository interface {
 	SetStocks(stocks []Stock) error
 	SetDailyData(dailydata []DailyData) error
 	DeleteStockByTicker(ticker string) error
-	DeleteDailyDataByTicker(ticker string) error
 }

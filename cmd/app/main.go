@@ -10,6 +10,7 @@ import (
 	"example.com/stocker-back/internal/infra"
 	"example.com/stocker-back/internal/usecase"
 	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/cron"
 )
@@ -22,7 +23,7 @@ type Application struct {
 	notifier infra.Notifier
 }
 
-func main() {
+func main() { //nolint:funlen //ignore
 	isDevMode := false
 	if os.Getenv("APP_ENV") == "dev" {
 		isDevMode = true
@@ -47,9 +48,10 @@ func main() {
 
 	repoStock := infra.NewStockRepositoryPB(pb)
 	repoScreen := infra.NewScreenRepositoryPB(pb)
+	repoTracking := infra.NewTrackingRepositoryPB(pb)
 	loggerSlog := infra.NewLoggerSlog(logger)
-	usecaseCommand := usecase.NewCommand(repoStock, repoScreen, loggerSlog, notifierPushbullet)
-	usecaseQuery := usecase.NewQuery(repoStock, repoScreen, loggerSlog, notifierPushbullet)
+	usecaseCommand := usecase.NewCommand(repoStock, repoScreen, repoTracking, loggerSlog, notifierPushbullet)
+	usecaseQuery := usecase.NewQuery(repoStock, repoScreen, repoTracking, loggerSlog, notifierPushbullet)
 
 	app := Application{
 		pb:       pb,
@@ -74,15 +76,26 @@ func main() {
 		// Global middleware.
 		// e.Router.Use(apis.RequireRecordAuth("user"))
 
-		e.Router.GET("/dele", app.deleHandler)
-		e.Router.GET("/updatedaily", app.updateDailyData)
-		e.Router.GET("/updatescreen", app.screenUpdateHandler)
+		gDele := e.Router.Group("/dele")
+		gDele.Use(apis.RequireRecordAuth("users"))
+		gDele.GET("/dev", app.deleHandler)
+		gDele.GET("/updatedaily", app.updateDailyData)
+		gDele.GET("/updatescreen", app.screenUpdateHandler)
 
-		e.Router.GET("/stocks/search", app.stockSearchHandler)
-		e.Router.POST("/stocks/create", app.stockCreateHandler)
-		e.Router.POST("/stocks/delete", app.stockDeleteHandler)
+		gStock := e.Router.Group("/stocks")
+		gStock.Use(apis.RequireRecordAuth("users"))
+		gStock.GET("/:ticker", app.stockSearchHandler)
+		gStock.POST("/:ticker", app.stockCreateHandler)
+		gStock.DELETE("/:ticker", app.stockDeleteHandler)
 
-		e.Router.GET("/screen", app.screenReadHandler)
+		gTracking := e.Router.Group("/tracking")
+		gTracking.Use(apis.RequireRecordAuth("users"))
+		gTracking.GET("/all", app.trackingSearchHandler)
+		gTracking.POST("/:ticker", app.trackingCreateHandler)
+
+		e.Router.GET("/screen", app.screenReadHandler, apis.RequireRecordAuth("users"))
+
+		e.Router.GET("/random/:num", app.randomStocksHandler, apis.RequireRecordAuth("users"))
 
 		return nil
 	})
