@@ -3,6 +3,7 @@ package apieastmoney
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -70,16 +71,22 @@ func (raw *RawStockCrawl) ToModel() stock.Stock {
 }
 
 // CrawlStocks concurrently crawls and produces stock.Stock given tickers.
-func (s *APIServiceEastmoney) CrawlStock(ticker string) stock.Stock {
+func (s *APIServiceEastmoney) CrawlStock(ticker string) (stock.Stock, error) {
 	rawStock, err := crawlStock(ticker)
 	if err != nil {
 		s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
-		return stock.NewEmptyStock()
+		return stock.NewEmptyStock(), err
+	}
+
+	if rawStock.Data.Name == "" {
+		err := errors.New("ticker does not exists")
+		s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+		return stock.NewEmptyStock(), err
 	}
 
 	s.logger.Debugf("CRAWL done", "ticker", ticker)
 
-	return rawStock.ToModel()
+	return rawStock.ToModel(), nil
 }
 
 // CrawlStocks concurrently crawls and produces stock.Stock given tickers.
@@ -147,6 +154,7 @@ func crawlStock(ticker string) (RawStockCrawl, error) {
 
 	text := sliceStringByChar(string(body), "(", ")")
 
+	// NOTE: need to check if `stock` actually exsits in returned text.
 	var output RawStockCrawl
 	if err := json.Unmarshal([]byte(text), &output); err != nil {
 		return RawStockCrawl{}, err

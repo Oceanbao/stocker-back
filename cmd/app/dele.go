@@ -8,11 +8,12 @@ import (
 )
 
 func (app *Application) deleHandler(c echo.Context) error {
-	err := app.command.UpdateDailyScreen()
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]any{"error": err.Error()})
-	}
-	return c.JSON(http.StatusOK, map[string]any{"dele": 0})
+	// err := app.command.DeleteStockByTicker("0.300799")
+	// if err != nil {
+	// 	return c.JSON(http.StatusOK, ResponseErr(err.Error()))
+	// }
+
+	return c.JSON(http.StatusOK, ResponseOk())
 }
 
 func (app *Application) updateDailyData(c echo.Context) error {
@@ -23,5 +24,5 @@ func (app *Application) updateDailyData(c echo.Context) error {
 			app.notifier.Sendf("updateDailyData", fmt.Sprintf("error: %v", err.Error()))
 		}
 	}()
-	return c.JSON(http.StatusOK, map[string]any{"updateDailyData": "ok"})
+	return c.JSON(http.StatusOK, ResponseOk())
 }

@@ -7,22 +7,25 @@ import (
 	apieastmoney "example.com/stocker-back/internal/infra/api_eastmoney"
 	"example.com/stocker-back/internal/screener"
 	"example.com/stocker-back/internal/stock"
+	"example.com/stocker-back/internal/tracking"
 	"github.com/samber/lo"
 )
 
 type Command struct {
-	repoStock  stock.Repository
-	repoScreen screener.Repository
-	logger     infra.Logger
-	notifier   infra.Notifier
+	repoStock    stock.Repository
+	repoScreen   screener.Repository
+	repoTracking tracking.Repository
+	logger       infra.Logger
+	notifier     infra.Notifier
 }
 
-func NewCommand(repoStock stock.Repository, repoScreen screener.Repository, logger infra.Logger, notifier infra.Notifier) *Command { //nolint:lll
+func NewCommand(repoStock stock.Repository, repoScreen screener.Repository, repoTracking tracking.Repository, logger infra.Logger, notifier infra.Notifier) *Command { //nolint:lll
 	return &Command{
-		repoStock:  repoStock,
-		repoScreen: repoScreen,
-		logger:     logger,
-		notifier:   notifier,
+		repoStock:    repoStock,
+		repoScreen:   repoScreen,
+		repoTracking: repoTracking,
+		logger:       logger,
+		notifier:     notifier,
 	}
 }
 
@@ -118,7 +121,10 @@ func (c *Command) UpdateDailyScreen() error {
 func (c *Command) CreateStockAndDailyData(ticker string) error {
 	// Crawl ticker stock.
 	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)
-	stockNew := apiServiceEastmoney.CrawlStock(ticker)
+	stockNew, err := apiServiceEastmoney.CrawlStock(ticker)
+	if err != nil {
+		return err
+	}
 	// Write db
 	if err := c.repoStock.SetStock(stockNew); err != nil {
 		return err
@@ -134,13 +140,26 @@ func (c *Command) CreateStockAndDailyData(ticker string) error {
 	return nil
 }
 
+// DeleteStockByTicker handles stock deletion by ticker, from all collections concerned.
 func (c *Command) DeleteStockByTicker(ticker string) error {
-	// NOTE: need to delete all related collections.
 	if err := c.repoStock.DeleteStockByTicker(ticker); err != nil {
 		return err
 	}
 
-	if err := c.repoStock.DeleteDailyDataByTicker(ticker); err != nil {
+	return nil
+}
+
+func (c *Command) CreateTracking(ticker string) error {
+	stock, err := c.repoStock.GetStockByTicker(ticker)
+	if err != nil {
+		return err
+	}
+
+	tracking := tracking.Tracking{
+		Ticker: stock.Ticker,
+		Name:   stock.Name,
+	}
+	if err = c.repoTracking.SetTracking(tracking); err != nil {
 		return err
 	}
 
