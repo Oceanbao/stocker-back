@@ -92,6 +92,7 @@ func main() { //nolint:funlen //ignore
 		gTracking.Use(apis.RequireRecordAuth("users"))
 		gTracking.GET("/all", app.trackingSearchHandler)
 		gTracking.POST("/:ticker", app.trackingCreateHandler)
+		gTracking.DELETE("/:ticker", app.trackingDeleteHandler)
 
 		e.Router.GET("/screen", app.screenReadHandler, apis.RequireRecordAuth("users"))
 

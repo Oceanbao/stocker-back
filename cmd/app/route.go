@@ -88,6 +88,17 @@ func (app *Application) trackingCreateHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, ResponseOk())
 }
 
+// trackingDeleteHandler is controller deleting stock from tracking.
+func (app *Application) trackingDeleteHandler(c echo.Context) error {
+	ticker := c.PathParam("ticker")
+
+	if err := app.command.DeleteTracking(ticker); err != nil {
+		return c.JSON(http.StatusOK, ResponseErr(err.Error()))
+	}
+
+	return c.JSON(http.StatusOK, ResponseOk())
+}
+
 // randomStocksHandler is controller handling retrieval of random stocks given number.
 func (app *Application) randomStocksHandler(c echo.Context) error {
 	numStr := c.PathParam("num")
