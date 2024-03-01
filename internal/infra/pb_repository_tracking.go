@@ -50,6 +50,7 @@ func (repo *TrackingRepositoryPB) GetTrackings() ([]tracking.Tracking, error) {
 	return trackings, nil
 }
 
+// SetTracking impl SetTracking interface.
 func (repo *TrackingRepositoryPB) SetTracking(tracking tracking.Tracking) error {
 	collection, err := repo.pb.Dao().FindCollectionByNameOrId("tracking")
 	if err != nil {
@@ -69,6 +70,23 @@ func (repo *TrackingRepositoryPB) SetTracking(tracking tracking.Tracking) error 
 	return nil
 }
 
+func (repo *TrackingRepositoryPB) DeleteTracking(ticker string) error {
+	record, err := repo.pb.Dao().FindFirstRecordByData("tracking", "ticker", ticker)
+	if err != nil {
+		repo.pb.Logger().Error("cannot find `tracking` record", "error", err.Error())
+		return err
+	}
+
+	err = repo.pb.Dao().DeleteRecord(record)
+	if err != nil {
+		repo.pb.Logger().Error("cannot delete `tracking` record", "error", err.Error())
+		return nil
+	}
+
+	return nil
+}
+
+// convertTrackingToRecord is DTO from Tracking to PB Record.
 func convertTrackingToRecord(tracking tracking.Tracking) RecordTracking {
 	return RecordTracking{
 		Ticker: tracking.Ticker,

@@ -149,6 +149,7 @@ func (c *Command) DeleteStockByTicker(ticker string) error {
 	return nil
 }
 
+// CreateTracking creates tracking entry for ticker.
 func (c *Command) CreateTracking(ticker string) error {
 	stock, err := c.repoStock.GetStockByTicker(ticker)
 	if err != nil {
@@ -160,6 +161,15 @@ func (c *Command) CreateTracking(ticker string) error {
 		Name:   stock.Name,
 	}
 	if err = c.repoTracking.SetTracking(tracking); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DeleteTracking deletes tracking entry from collection.
+func (c *Command) DeleteTracking(ticker string) error {
+	if err := c.repoTracking.DeleteTracking(ticker); err != nil {
 		return err
 	}
 
