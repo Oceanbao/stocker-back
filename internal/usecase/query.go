@@ -1,6 +1,8 @@
 package usecase
 
 import (
+	"encoding/json"
+
 	"example.com/stocker-back/internal/infra"
 	"example.com/stocker-back/internal/screener"
 	"example.com/stocker-back/internal/stock"
@@ -88,11 +90,20 @@ func (q *Query) GetTrackings() ([]map[string]interface{}, error) {
 	}
 
 	var output []map[string]interface{}
-	for _, t := range trackings {
-		output = append(output, map[string]interface{}{
-			"ticker": t.Ticker,
-			"name":   t.Name,
-		})
+	for _, s := range trackings {
+		stock, err := q.repoStock.GetStockByTicker(s.Ticker)
+		if err != nil {
+			continue
+		}
+		var m map[string]interface{}
+		b, err := json.Marshal(stock)
+		if err != nil {
+			continue
+		}
+		if err := json.Unmarshal(b, &m); err != nil {
+			continue
+		}
+		output = append(output, m)
 	}
 
 	return output, nil
