@@ -118,6 +118,24 @@ func (c *Command) UpdateDailyScreen() error {
 	return nil
 }
 
+func (c *Command) CreateStock(ticker string) error {
+	// Crawl ticker stock.
+	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)
+	stockNew, err := apiServiceEastmoney.CrawlStock(ticker)
+	if err != nil {
+		return err
+	}
+
+	// Write db
+	if err := c.repoStock.SetStock(stockNew); err != nil {
+		return err
+	}
+
+	c.logger.Infof("CreateStock", "ok", ticker)
+
+	return nil
+}
+
 func (c *Command) CreateStockAndDailyData(ticker string) error {
 	// Crawl ticker stock.
 	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)

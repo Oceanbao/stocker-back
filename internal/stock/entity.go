@@ -1,6 +1,8 @@
 package stock
 
 import (
+	"encoding/json"
+
 	"github.com/samber/lo"
 )
 
@@ -28,6 +30,16 @@ type Stock struct {
 	TotalRevenueChange float64 `db:"totalrevenuechange" json:"totalrevenuechange"`
 	GrossProfitMargin  float64 `db:"grossprofitmargin" json:"grossprofitmargin"`
 	DebtRatio          float64 `db:"debtratio" json:"debtratio"`
+	RankTotalCap       int     `db:"ranktotalcap" json:"ranktotalcap"`
+	RankNetAsset       int     `db:"ranknetasset" json:"ranknetasset"`
+	RankNetProfit      int     `db:"ranknetprofit" json:"ranknetprofit"`
+	RankGrossMargin    int     `db:"rankgrossmargin" json:"rankgrossmargin"`
+	RankPER            int     `db:"rankper" json:"rankper"`
+	RankPBR            int     `db:"rankpbr" json:"rankpbr"`
+	RankNetMargin      int     `db:"ranknetmargin" json:"ranknetmargin"`
+	RankROE            int     `db:"rankroe" json:"rankroe"`
+	Sector             string  `db:"sector" json:"sector"`
+	SectorTotal        int     `db:"sectortotal" json:"sectortotal"`
 }
 
 func NewEmptyStock() Stock {
@@ -54,20 +66,29 @@ func NewEmptyStock() Stock {
 		TotalRevenueChange: 0.0,
 		GrossProfitMargin:  0.0,
 		DebtRatio:          0.0,
+		RankTotalCap:       0,
+		RankNetAsset:       0,
+		RankNetProfit:      0,
+		RankGrossMargin:    0,
+		RankPER:            0,
+		RankPBR:            0,
+		RankNetMargin:      0,
+		RankROE:            0,
+		Sector:             "",
+		SectorTotal:        0,
 	}
 }
 
-type Rank struct {
-	Ticker            string `db:"ticker" json:"ticker"`
-	SectorTotal       int    `db:"sectortotal" json:"sectortotal"`
-	TotalCap          int    `db:"totalcap" json:"totalcap"`
-	NetProfit         int    `db:"netprofit" json:"netprofit"`
-	PricePerEarning   int    `db:"priceperearning" json:"priceperearningnetprofit"`
-	PricePerBook      int    `db:"priceperbook" json:"priceperbook"`
-	GrossProfitMargin int    `db:"grossprofitmargin" json:"grossprofitmargin"`
-	ProfitMargin      int    `db:"profitmargin" json:"profitmargin"`
-	ROE               int    `db:"roe" json:"roe"`
-	NetAsset          int    `db:"netasset" json:"netasset"`
+func (s *Stock) ToMap() (map[string]interface{}, error) {
+	var m map[string]interface{}
+	b, err := json.Marshal(*s)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // OHLC is valueobject for daily open,high,low,close prices.
@@ -128,4 +149,16 @@ func NewEmptyDailyData() DailyData {
 		Change:     0.0,
 		Turnover:   0.0,
 	}
+}
+
+func (d *DailyData) ToMap() (map[string]interface{}, error) {
+	var m map[string]interface{}
+	b, err := json.Marshal(*d)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }

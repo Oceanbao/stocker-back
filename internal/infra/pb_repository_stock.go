@@ -21,6 +21,7 @@ func NewStockRepositoryPB(pb *pocketbase.PocketBase) *StockRepositoryPB {
 	}
 }
 
+// RecordStock is type of PB database collection schema.
 type RecordStock struct {
 	Ticker             string  `db:"ticker" json:"ticker"`
 	Name               string  `db:"name" json:"name"`
@@ -44,6 +45,16 @@ type RecordStock struct {
 	TotalRevenueChange float64 `db:"totalrevenuechange" json:"totalrevenuechange"`
 	GrossProfitMargin  float64 `db:"grossprofitmargin" json:"grossprofitmargin"`
 	DebtRatio          float64 `db:"debtratio" json:"debtratio"`
+	RankTotalCap       int     `db:"ranktotalcap" json:"ranktotalcap"`
+	RankNetAsset       int     `db:"ranknetasset" json:"ranknetasset"`
+	RankNetProfit      int     `db:"ranknetprofit" json:"ranknetprofit"`
+	RankGrossMargin    int     `db:"rankgrossmargin" json:"rankgrossmargin"`
+	RankPER            int     `db:"rankper" json:"rankper"`
+	RankPBR            int     `db:"rankpbr" json:"rankpbr"`
+	RankNetMargin      int     `db:"ranknetmargin" json:"ranknetmargin"`
+	RankROE            int     `db:"rankroe" json:"rankroe"`
+	Sector             string  `db:"sector" json:"sector"`
+	SectorTotal        int     `db:"sectortotal" json:"sectortotal"`
 }
 
 func (r RecordStock) ToModel() stock.Stock {
@@ -70,6 +81,16 @@ func (r RecordStock) ToModel() stock.Stock {
 		TotalRevenueChange: r.TotalRevenueChange,
 		GrossProfitMargin:  r.GrossProfitMargin,
 		DebtRatio:          r.DebtRatio,
+		RankTotalCap:       r.RankTotalCap,
+		RankNetAsset:       r.RankNetAsset,
+		RankNetProfit:      r.RankNetProfit,
+		RankGrossMargin:    r.RankGrossMargin,
+		RankPER:            r.RankPER,
+		RankPBR:            r.RankPBR,
+		RankNetMargin:      r.RankNetMargin,
+		RankROE:            r.RankROE,
+		Sector:             r.Sector,
+		SectorTotal:        r.SectorTotal,
 	}
 }
 
@@ -205,24 +226,30 @@ func (repo *StockRepositoryPB) GetDailyDataLastAll() ([]stock.DailyData, error) 
 }
 
 func (repo *StockRepositoryPB) SetStock(stock stock.Stock) error {
-	collection, err := repo.pb.Dao().FindCollectionByNameOrId("stocks")
+	expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": stock.Ticker})
+	records, err := repo.pb.Dao().FindRecordsByExpr("stocks", expr)
 	if err != nil {
+		repo.pb.Logger().Error("SetStock: fail to find record", "error", err.Error(), "ticker", stock.Ticker)
 		return err
 	}
 
-	model := models.NewRecord(collection)
-	record := convertStockToMap(stock)
-	model.Load(record)
-
-	err = repo.pb.Dao().SaveRecord(model)
+	recordUnique := records[0]
+	newRecordData, err := stock.ToMap()
 	if err != nil {
-		repo.pb.Logger().Error("cannot write to `stocks`", "error", err.Error())
-		return nil
+		return err
+	}
+	recordUnique.Load(newRecordData)
+
+	err = repo.pb.Dao().SaveRecord(recordUnique)
+	if err != nil {
+		repo.pb.Logger().Error("SetStock: cannot write to `stocks`", "error", err.Error())
+		return err
 	}
 
 	return nil
 }
 
+// SetStocks upsert pb databse with given stocks.
 func (repo *StockRepositoryPB) SetStocks(stocks []stock.Stock) error {
 	err := repo.pb.Dao().RunInTransaction(func(txDao *daos.Dao) error {
 		for _, data := range stocks {
@@ -234,7 +261,10 @@ func (repo *StockRepositoryPB) SetStocks(stocks []stock.Stock) error {
 			}
 
 			recordUnique := records[0]
-			newRecordData := convertStockToMap(data)
+			newRecordData, err := data.ToMap()
+			if err != nil {
+				return err
+			}
 			recordUnique.Load(newRecordData)
 
 			if err = txDao.SaveRecord(recordUnique); err != nil {
@@ -260,7 +290,10 @@ func (repo *StockRepositoryPB) SetDailyData(dailyData []stock.DailyData) error {
 
 	err = repo.pb.Dao().RunInTransaction(func(txDao *daos.Dao) error {
 		for _, data := range dailyData {
-			recordData := convertDailyDataToRecord(data)
+			recordData, err := data.ToMap()
+			if err != nil {
+				return err
+			}
 			record := models.NewRecord(collection)
 			record.Load(recordData)
 
@@ -326,50 +359,4 @@ func fieldInCollection(dao *daos.Dao, field string, collection *models.Collectio
 	}
 
 	return false
-}
-
-func convertStockToMap(stock stock.Stock) map[string]any {
-	return map[string]any{
-		"ticker":             stock.Ticker,
-		"name":               stock.Name,
-		"etf":                stock.ETF,
-		"dateofpublic":       stock.DateOfPublic,
-		"eps":                stock.EPS,
-		"undistprofit":       stock.UndistProfit,
-		"totalshare":         stock.TotalShare,
-		"totalshareout":      stock.TotalShareOut,
-		"totalcap":           stock.TotalCap,
-		"tradecap":           stock.TradeCap,
-		"netasset":           stock.NetAsset,
-		"netassetpershare":   stock.NetAssetPerShare,
-		"netprofit":          stock.NetProfit,
-		"netprofitchange":    stock.NetProfitChange,
-		"profitmargin":       stock.ProfitMargin,
-		"priceperearning":    stock.PricePerEarning,
-		"priceperbook":       stock.PricePerBook,
-		"roe":                stock.ROE,
-		"totalrevenue":       stock.TotalRevenue,
-		"totalrevenuechange": stock.TotalRevenueChange,
-		"grossprofitmargin":  stock.GrossProfitMargin,
-		"debtratio":          stock.DebtRatio,
-	}
-}
-
-func convertDailyDataToRecord(dailyData stock.DailyData) map[string]any {
-	return map[string]any{
-		"ticker": dailyData.Ticker,
-		"date":   dailyData.Date,
-
-		"open":  dailyData.Open,
-		"high":  dailyData.High,
-		"low":   dailyData.Low,
-		"close": dailyData.Close,
-
-		"volume":     dailyData.Volume,
-		"value":      dailyData.Value,
-		"volatility": dailyData.Volatility,
-		"pchange":    dailyData.Pchange,
-		"change":     dailyData.Change,
-		"turnover":   dailyData.Turnover,
-	}
 }

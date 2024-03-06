@@ -78,7 +78,7 @@ func main() { //nolint:funlen //ignore
 
 		gDele := e.Router.Group("/dele")
 		gDele.Use(apis.RequireRecordAuth("users"))
-		gDele.GET("/dev", app.deleHandler)
+		gDele.GET("/updatestocks", app.deleUpdateStocksHandler)
 		gDele.GET("/updatedaily", app.updateDailyData)
 		gDele.GET("/updatescreen", app.screenUpdateHandler)
 
