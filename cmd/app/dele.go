@@ -7,11 +7,13 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
-func (app *Application) deleHandler(c echo.Context) error {
-	// err := app.command.DeleteStockByTicker("0.300799")
-	// if err != nil {
-	// 	return c.JSON(http.StatusOK, ResponseErr(err.Error()))
-	// }
+func (app *Application) deleUpdateStocksHandler(c echo.Context) error {
+	go func() {
+		err := app.command.UpdateStocks()
+		if err != nil {
+			return
+		}
+	}()
 
 	return c.JSON(http.StatusOK, ResponseOk())
 }

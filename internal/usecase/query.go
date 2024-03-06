@@ -18,7 +18,7 @@ type Query struct {
 	notifier     infra.Notifier
 }
 
-// NOTE: fix this into config.
+// DELE: fix this into config.
 func NewQuery(repoStock stock.Repository, repoScreen screener.Repository, repoTracking tracking.Repository, logger infra.Logger, notifier infra.Notifier) *Query { //nolint:lll
 	return &Query{
 		repoStock:    repoStock,
@@ -32,7 +32,7 @@ func NewQuery(repoStock stock.Repository, repoScreen screener.Repository, repoTr
 func (q *Query) GetStockByTicker(ticker string) (stock.Stock, error) {
 	stockFound, err := q.repoStock.GetStockByTicker(ticker)
 	if err != nil {
-		// NOTE: err means likely no row found, therefore pass empty Stock.
+		// DELE: err means likely no row found, therefore pass empty Stock.
 		return stock.NewEmptyStock(), err
 	}
 

@@ -40,10 +40,70 @@ type RawStockCrawl struct {
 	} `json:"data"`
 }
 
-func (raw *RawStockCrawl) ToModel() stock.Stock {
+func (raw *RawStockCrawl) ToModel(rawRank RawRankCrawl) (stock.Stock, error) {
 	dateOfPublic, _ := time.Parse(common.DateLayoutNewOriental, fmt.Sprintf("%v", raw.Data.DateOfPublic))
 
-	// NOTE: fix possible overflow in big float64 and esp. NetAsset by log2 value.
+	rankTotalCap, ok := rawRank.Data.Diff[0]["f1020"].(float64)
+	if !ok {
+		err := fmt.Errorf("error: failed to parse rank data `rankTotalCap` as float64")
+		return stock.NewEmptyStock(), err
+	}
+
+	rankNetAsset, ok := rawRank.Data.Diff[0]["f1135"].(float64)
+	if !ok {
+		err := fmt.Errorf("error: failed to parse rank data `rankNetAsset` as float64")
+		return stock.NewEmptyStock(), err
+	}
+
+	rankNetProfit, ok := rawRank.Data.Diff[0]["f1045"].(float64)
+	if !ok {
+		err := fmt.Errorf("error: failed to parse rank data `rankNetProfit` as float64")
+		return stock.NewEmptyStock(), err
+	}
+
+	rankGrossMargin, ok := rawRank.Data.Diff[0]["f1049"].(float64)
+	if !ok {
+		err := fmt.Errorf("error: failed to parse rank data `rankGrossMargin` as float64")
+		return stock.NewEmptyStock(), err
+	}
+
+	rankPER, ok := rawRank.Data.Diff[0]["f1009"].(float64)
+	if !ok {
+		err := fmt.Errorf("error: failed to parse rank data `rankPER` as float64")
+		return stock.NewEmptyStock(), err
+	}
+
+	rankPBR, ok := rawRank.Data.Diff[0]["f1023"].(float64)
+	if !ok {
+		err := fmt.Errorf("error: failed to parse rank data `rankPBR` as float64")
+		return stock.NewEmptyStock(), err
+	}
+
+	rankNetMargin, ok := rawRank.Data.Diff[0]["f1129"].(float64)
+	if !ok {
+		err := fmt.Errorf("error: failed to parse rank data `rankNetMargin` as float64")
+		return stock.NewEmptyStock(), err
+	}
+
+	rankROE, ok := rawRank.Data.Diff[0]["f1037"].(float64)
+	if !ok {
+		err := fmt.Errorf("error: failed to parse rank data `rankROE` as float64")
+		return stock.NewEmptyStock(), err
+	}
+
+	sector, ok := rawRank.Data.Diff[1]["f14"].(string)
+	if !ok {
+		err := fmt.Errorf("error: failed to parse rank data `sector` as string")
+		return stock.NewEmptyStock(), err
+	}
+
+	sectorTotal, ok := rawRank.Data.Diff[1]["f134"].(float64)
+	if !ok {
+		err := fmt.Errorf("error: failed to parse rank data `sectorTotal` as float64")
+		return stock.NewEmptyStock(), err
+	}
+
+	// DELE: fix possible overflow in big float64 and esp. NetAsset by log2 value.
 	return stock.Stock{
 		Ticker:             fmt.Sprintf("%v.%v", raw.Data.Market, raw.Data.Ticker),
 		Name:               raw.Data.Name,
@@ -67,7 +127,23 @@ func (raw *RawStockCrawl) ToModel() stock.Stock {
 		TotalRevenueChange: raw.Data.TotalRevenueChange,
 		GrossProfitMargin:  raw.Data.GrossProfit,
 		DebtRatio:          raw.Data.DebtRatio,
-	}
+		RankTotalCap:       int(rankTotalCap),
+		RankNetAsset:       int(rankNetAsset),
+		RankNetProfit:      int(rankNetProfit),
+		RankGrossMargin:    int(rankGrossMargin),
+		RankPER:            int(rankPER),
+		RankPBR:            int(rankPBR),
+		RankNetMargin:      int(rankNetMargin),
+		RankROE:            int(rankROE),
+		Sector:             sector,
+		SectorTotal:        int(sectorTotal),
+	}, nil
+}
+
+type RawRankCrawl struct {
+	Data struct {
+		Diff []map[string]interface{} `json:"diff"`
+	} `json:"data"`
 }
 
 // CrawlStocks concurrently crawls and produces stock.Stock given tickers.
@@ -78,15 +154,28 @@ func (s *APIServiceEastmoney) CrawlStock(ticker string) (stock.Stock, error) {
 		return stock.NewEmptyStock(), err
 	}
 
+	// DELE
 	if rawStock.Data.Name == "" {
 		err := errors.New("ticker does not exists")
 		s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
 		return stock.NewEmptyStock(), err
 	}
 
+	rawRank, err := crawlRank(ticker)
+	if err != nil {
+		s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+		return stock.NewEmptyStock(), err
+	}
+
 	s.logger.Debugf("CRAWL done", "ticker", ticker)
 
-	return rawStock.ToModel(), nil
+	model, err := rawStock.ToModel(rawRank)
+	if err != nil {
+		s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+		return stock.NewEmptyStock(), err
+	}
+
+	return model, nil
 }
 
 // CrawlStocks concurrently crawls and produces stock.Stock given tickers.
@@ -109,9 +198,24 @@ func (s *APIServiceEastmoney) CrawlStocks(tickers []string) []stock.Stock {
 					continue
 				}
 
+				// DELE
+				rawRank, err := crawlRank(ticker)
+				if err != nil {
+					chanResults <- stock.NewEmptyStock()
+					s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+					continue
+				}
+
 				s.logger.Debugf("CRAWL", "ok", ticker, "data", rawStock)
 
-				chanResults <- rawStock.ToModel()
+				model, err := rawStock.ToModel(rawRank)
+				if err != nil {
+					s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+					chanResults <- stock.NewEmptyStock()
+					continue
+				}
+
+				chanResults <- model
 			}
 		}()
 	}
@@ -133,7 +237,7 @@ func (s *APIServiceEastmoney) CrawlStocks(tickers []string) []stock.Stock {
 	return output
 }
 
-// crawlStock runs the implementation.
+// crawlStock crawls the Eastmoney endpoint for stock meta.
 func crawlStock(ticker string) (RawStockCrawl, error) {
 	url := fmt.Sprintf(
 		"https://push2.eastmoney.com/api/qt/stock/get?"+
@@ -154,10 +258,40 @@ func crawlStock(ticker string) (RawStockCrawl, error) {
 
 	text := sliceStringByChar(string(body), "(", ")")
 
-	// NOTE: need to check if `stock` actually exsits in returned text.
+	// DELE: need to check if `stock` actually exsits in returned text.
 	var output RawStockCrawl
 	if err := json.Unmarshal([]byte(text), &output); err != nil {
 		return RawStockCrawl{}, err
+	}
+
+	return output, nil
+}
+
+// crawlRank crawls the Eastmoney endpoint for stock sector rank meta.
+func crawlRank(ticker string) (RawRankCrawl, error) {
+	url := fmt.Sprintf(
+		"https://push2.eastmoney.com/api/qt/slist/get?fltt=1&"+
+			"invt=2&cb=jQuery35105571137681219451_1708499614794&"+
+			"fields=f12%%2Cf13%%2Cf14%%2Cf20%%2Cf58%%2Cf45%%2Cf132%%2Cf9%%2Cf152%%2Cf23%%2Cf49%%2Cf131%%2Cf137%%2Cf133%%2Cf134%%2Cf135%%2Cf129%%2Cf37%%2Cf1000%%2Cf3000%%2Cf2000&"+ //nolint:lll
+			"secid=%s"+
+			"&ut=fa5fd1943c7b386f172d6893dbfba10b&pn=1&np=1&spt=1&wbp2u=%%7C0%%7C0%%7C0%%7Cweb&_=1708499614795", ticker,
+	)
+
+	timeout := 10
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(timeout))
+	defer cancel()
+
+	body, err := common.Fetch(ctx, url)
+	if err != nil {
+		return RawRankCrawl{}, err
+	}
+
+	text := sliceStringByChar(string(body), "(", ")")
+
+	// DELE: need to check if `stock` actually exsits in returned text.
+	var output RawRankCrawl
+	if err := json.Unmarshal([]byte(text), &output); err != nil {
+		return RawRankCrawl{}, err
 	}
 
 	return output, nil
