@@ -44,7 +44,7 @@ func (c *Command) UpdateStocks() error {
 	c.logger.Infof("UpdateStocks - starting crawling...")
 
 	failedTickers := make([]string, 0, len(tickers))
-	for _, ticker := range tickers[:3] {
+	for _, ticker := range tickers {
 		stockNew, err := apiServiceEastmoney.CrawlStock(ticker)
 		if err != nil {
 			c.logger.Errorf("CrawlStock", "error", err.Error(), "ticker", ticker)
