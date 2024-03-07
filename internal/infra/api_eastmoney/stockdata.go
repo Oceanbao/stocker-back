@@ -1,6 +1,7 @@
 package apieastmoney
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -150,28 +151,28 @@ type RawRankCrawl struct {
 func (s *APIServiceEastmoney) CrawlStock(ticker string) (stock.Stock, error) {
 	rawStock, err := crawlStock(ticker)
 	if err != nil {
-		s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+		s.logger.Errorf("CRAWL", "failed", ticker, "error", err.Error())
 		return stock.NewEmptyStock(), err
 	}
 
 	// DELE
 	if rawStock.Data.Name == "" {
 		err := errors.New("ticker does not exists")
-		s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+		s.logger.Errorf("CRAWL", "failed", ticker, "error", err.Error())
 		return stock.NewEmptyStock(), err
 	}
 
 	rawRank, err := crawlRank(ticker)
 	if err != nil {
-		s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+		s.logger.Errorf("CRAWL", "failed", ticker, "error", err.Error())
 		return stock.NewEmptyStock(), err
 	}
 
-	s.logger.Debugf("CRAWL done", "ticker", ticker)
+	s.logger.Infof("CRAWL done", "ticker", ticker)
 
 	model, err := rawStock.ToModel(rawRank)
 	if err != nil {
-		s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+		s.logger.Errorf("CRAWL", "failed", ticker, "error", err.Error())
 		return stock.NewEmptyStock(), err
 	}
 
@@ -190,11 +191,11 @@ func (s *APIServiceEastmoney) CrawlStocks(tickers []string) []stock.Stock {
 		go func() {
 			for ticker := range chanJobs {
 				time.Sleep(time.Second * time.Duration(secondThrottled))
-				s.logger.Debugf("CRAWL crawling", "ticker", ticker)
+				s.logger.Infof("CrawlStocks", "ticker", ticker)
 				rawStock, err := crawlStock(ticker)
 				if err != nil {
 					chanResults <- stock.NewEmptyStock()
-					s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+					s.logger.Errorf("CrawlStocks", "failed", ticker, "error", err.Error())
 					continue
 				}
 
@@ -202,15 +203,15 @@ func (s *APIServiceEastmoney) CrawlStocks(tickers []string) []stock.Stock {
 				rawRank, err := crawlRank(ticker)
 				if err != nil {
 					chanResults <- stock.NewEmptyStock()
-					s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+					s.logger.Errorf("CrawlStocks", "failed", ticker, "error", err.Error())
 					continue
 				}
 
-				s.logger.Debugf("CRAWL", "ok", ticker, "data", rawStock)
+				s.logger.Infof("CrawlStocks", "ok", ticker, "data", rawStock)
 
 				model, err := rawStock.ToModel(rawRank)
 				if err != nil {
-					s.logger.Debugf("CRAWL", "failed", ticker, "error", err.Error())
+					s.logger.Errorf("CrawlStocks", "failed", ticker, "error", err.Error())
 					chanResults <- stock.NewEmptyStock()
 					continue
 				}
@@ -229,7 +230,6 @@ func (s *APIServiceEastmoney) CrawlStocks(tickers []string) []stock.Stock {
 	for range numJobs {
 		stock := <-chanResults
 		if stock.Ticker != "" {
-			s.logger.Debugf("CRAWL", "stock", stock)
 			output = append(output, stock)
 		}
 	}
@@ -260,7 +260,9 @@ func crawlStock(ticker string) (RawStockCrawl, error) {
 
 	// DELE: need to check if `stock` actually exsits in returned text.
 	var output RawStockCrawl
-	if err := json.Unmarshal([]byte(text), &output); err != nil {
+	// Handle NaN in JSON.
+	b := bytes.ReplaceAll([]byte(text), []byte(":NaN"), []byte(":null"))
+	if err := json.Unmarshal(b, &output); err != nil {
 		return RawStockCrawl{}, err
 	}
 
@@ -290,7 +292,9 @@ func crawlRank(ticker string) (RawRankCrawl, error) {
 
 	// DELE: need to check if `stock` actually exsits in returned text.
 	var output RawRankCrawl
-	if err := json.Unmarshal([]byte(text), &output); err != nil {
+	// Handle NaN in JSON.
+	b := bytes.ReplaceAll([]byte(text), []byte(":NaN"), []byte(":null"))
+	if err := json.Unmarshal(b, &output); err != nil {
 		return RawRankCrawl{}, err
 	}
 
