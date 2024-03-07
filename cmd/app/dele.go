@@ -9,6 +9,7 @@ import (
 
 func (app *Application) deleUpdateStocksHandler(c echo.Context) error {
 	go func() {
+		app.pb.Logger().Info("deleUpdateStocksHandler running...")
 		err := app.command.UpdateStocks()
 		if err != nil {
 			return
@@ -22,7 +23,7 @@ func (app *Application) updateDailyData(c echo.Context) error {
 	go func() {
 		err := app.command.UpdateDailyData()
 		if err != nil {
-			app.logger.Error("updateDailyData", "error", err.Error())
+			app.pb.Logger().Error("updateDailyData", "error", err.Error())
 			app.notifier.Sendf("updateDailyData", fmt.Sprintf("error: %v", err.Error()))
 		}
 	}()

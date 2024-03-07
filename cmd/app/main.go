@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
-	"log/slog"
 	"os"
 
 	"example.com/stocker-back/internal/infra"
@@ -17,27 +16,26 @@ import (
 
 type Application struct {
 	pb       *pocketbase.PocketBase
-	command  usecase.Command
-	query    usecase.Query
-	logger   *slog.Logger
+	command  *usecase.Command
+	query    *usecase.Query
 	notifier infra.Notifier
 }
 
-func main() { //nolint:funlen //ignore
+func main() {
 	isDevMode := false
 	if os.Getenv("APP_ENV") == "dev" {
 		isDevMode = true
 	}
 
-	var loggingLevel = new(slog.LevelVar)
-	if isDevMode {
-		loggingLevel.Set(slog.LevelDebug)
-	}
-	loggingOpt := &slog.HandlerOptions{
-		Level: loggingLevel,
-	}
+	// var loggingLevel = new(slog.LevelVar)
+	// if isDevMode {
+	// 	loggingLevel.Set(slog.LevelDebug)
+	// }
+	// loggingOpt := &slog.HandlerOptions{
+	// 	Level: loggingLevel,
+	// }
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, loggingOpt))
+	// logger := slog.New(slog.NewJSONHandler(os.Stdout, loggingOpt))
 
 	pb := pocketbase.New()
 
@@ -49,19 +47,18 @@ func main() { //nolint:funlen //ignore
 	repoStock := infra.NewStockRepositoryPB(pb)
 	repoScreen := infra.NewScreenRepositoryPB(pb)
 	repoTracking := infra.NewTrackingRepositoryPB(pb)
-	loggerSlog := infra.NewLoggerSlog(logger)
+	loggerSlog := infra.NewLoggerSlog(pb.Logger())
 	usecaseCommand := usecase.NewCommand(repoStock, repoScreen, repoTracking, loggerSlog, notifierPushbullet)
 	usecaseQuery := usecase.NewQuery(repoStock, repoScreen, repoTracking, loggerSlog, notifierPushbullet)
 
 	app := Application{
 		pb:       pb,
-		command:  *usecaseCommand,
-		query:    *usecaseQuery,
-		logger:   logger,
+		command:  usecaseCommand,
+		query:    usecaseQuery,
 		notifier: notifierPushbullet,
 	}
 
-	app.logger.Info("starting app...")
+	app.pb.Logger().Info("starting app...")
 
 	// // loosely check if it was executed using "go run".
 	// isGoRun := strings.HasPrefix(os.Args[0], os.TempDir())
@@ -104,7 +101,7 @@ func main() { //nolint:funlen //ignore
 	// ----------------- Cron ----------------------
 	app.pb.OnBeforeServe().Add(func(_ *core.ServeEvent) error {
 		if isDevMode {
-			app.logger.Debug("running in dev mode, turning off CRONs")
+			app.pb.Logger().Info("running in dev mode, turning off CRONs")
 			return nil
 		}
 
@@ -115,21 +112,21 @@ func main() { //nolint:funlen //ignore
 		if err != nil {
 			return fmt.Errorf("error in adding cron job `cronSignalDailyDataUpdate`: %w", err)
 		}
-		app.logger.Info("cron", "messge", "cronSignalDailyDataUpdate registered")
+		app.pb.Logger().Info("cron", "messge", "cronSignalDailyDataUpdate registered")
 
 		// Every week Mon-Fri at 11:00 UTC (19:00 Beijing Time)
 		err = scheduler.Add("dailyscreen", "0 11 * * 1-5", app.cronDailyScreening)
 		if err != nil {
 			return fmt.Errorf("error in adding cron job `cronDailyScreening`: %w", err)
 		}
-		app.logger.Info("cron", "messge", "cronDailyScreening registered")
+		app.pb.Logger().Info("cron", "messge", "cronDailyScreening registered")
 
 		// Every week Fri at 12:00 UTC (20:00 Beijing Time)
 		err = scheduler.Add("weeklystocks", "0 12 * * 5", app.cronWeeklyStocksUpdate)
 		if err != nil {
 			return fmt.Errorf("error in adding cron job `cronWeeklyStocksUpdate`: %w", err)
 		}
-		app.logger.Info("cron", "messge", "cronWeeklyStocksUpdate registered")
+		app.pb.Logger().Info("cron", "messge", "cronWeeklyStocksUpdate registered")
 
 		scheduler.Start()
 

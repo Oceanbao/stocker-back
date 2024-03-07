@@ -30,7 +30,7 @@ func NewCommand(repoStock stock.Repository, repoScreen screener.Repository, repo
 }
 
 func (c *Command) UpdateStocks() error {
-	c.logger.Debugf("UpdateStocks", "message", "start...")
+	c.logger.Infof("UpdateStocks - starting...")
 	stocksAll, err := c.repoStock.GetStocks()
 	if err != nil {
 		return err
@@ -41,26 +41,42 @@ func (c *Command) UpdateStocks() error {
 	})
 
 	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)
-	stocksAllNew := apiServiceEastmoney.CrawlStocks(tickers)
+	c.logger.Infof("UpdateStocks - starting crawling...")
 
-	err = c.repoStock.SetStocks(stocksAllNew)
-	if err != nil {
-		c.logger.Errorf("SetStocksAll", "error", err.Error())
-		c.notifier.Sendf("SetStocksAll", err.Error())
-		return err
+	failedTickers := make([]string, 0, len(tickers))
+	for _, ticker := range tickers[:3] {
+		stockNew, err := apiServiceEastmoney.CrawlStock(ticker)
+		if err != nil {
+			c.logger.Errorf("CrawlStock", "error", err.Error(), "ticker", ticker)
+			failedTickers = append(failedTickers, ticker)
+			continue
+		}
+
+		err = c.repoStock.SetStock(stockNew)
+		if err != nil {
+			c.logger.Errorf("SetStock", "error", err.Error(), "ticker", ticker)
+			failedTickers = append(failedTickers, ticker)
+			continue
+		}
 	}
+
+	c.logger.Infof("UpdateStocks - DONE", "failed stocks", len(failedTickers), "tickers", failedTickers)
+	c.notifier.Sendf(
+		"UpdateStocks DONE",
+		fmt.Sprintf("failed stocks len: %d tickers: %v", len(failedTickers), failedTickers),
+	)
 
 	return nil
 }
 
 func (c *Command) UpdateDailyData() error {
-	c.logger.Debugf("UpdateDailyData()", "message", "start...")
+	c.logger.Infof("UpdateDailyData()", "message", "start...")
 	dailyDataToCrawl, err := c.repoStock.GetDailyDataLastAll()
 	if err != nil {
 		return err
 	}
 
-	c.logger.Debugf("UpdateDailyData()", "message", "crawl...")
+	c.logger.Infof("UpdateDailyData()", "message", "crawl...")
 	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)
 	dailyDataNew := apiServiceEastmoney.CrawlDailyToDate(dailyDataToCrawl)
 
@@ -70,24 +86,19 @@ func (c *Command) UpdateDailyData() error {
 		return err
 	}
 
-	c.logger.Debugf("total crawled: [%d]", "len", len(dailyDataNew))
+	c.logger.Infof("total crawled: [%d]", "len", len(dailyDataNew))
 	c.notifier.Sendf("Stocker - total crawled", fmt.Sprintf("%d", len(dailyDataNew)))
 
 	return nil
 }
 
 func (c *Command) UpdateDailyScreen() error {
-	c.logger.Debugf("UpdateDailyScreen", "message", "start...")
+	c.logger.Infof("UpdateDailyScreen", "message", "start...")
 
 	dailyDataLastAll, err := c.repoStock.GetDailyDataAll()
 	if err != nil {
 		return err
 	}
-
-	// for key, val := range dailyDataLastAll {
-	// 	c.logger.Debugf("UpdateDailyScreen", "ticker", key, "daily", val)
-	// 	break
-	// }
 
 	screens := make([]screener.Screen, 0, len(dailyDataLastAll))
 	for key, data := range dailyDataLastAll {

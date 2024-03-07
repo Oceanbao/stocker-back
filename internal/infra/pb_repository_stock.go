@@ -251,32 +251,40 @@ func (repo *StockRepositoryPB) SetStock(stock stock.Stock) error {
 
 // SetStocks upsert pb databse with given stocks.
 func (repo *StockRepositoryPB) SetStocks(stocks []stock.Stock) error {
-	err := repo.pb.Dao().RunInTransaction(func(txDao *daos.Dao) error {
-		for _, data := range stocks {
-			expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": data.Ticker})
-			records, err := txDao.FindRecordsByExpr("stocks", expr)
-			if err != nil {
-				repo.pb.Logger().Error("failed to find record from `stocks` - skip", "error", err.Error(), "ticker", data.Ticker)
-				continue
-			}
-
-			recordUnique := records[0]
-			newRecordData, err := data.ToMap()
-			if err != nil {
-				return err
-			}
-			recordUnique.Load(newRecordData)
-
-			if err = txDao.SaveRecord(recordUnique); err != nil {
-				repo.pb.Logger().Error("cannot write to `stocks`", "error", err.Error())
-				continue
-			}
+	for _, stock := range stocks {
+		expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": stock.Ticker})
+		records, err := repo.pb.Dao().FindRecordsByExpr("stocks", expr)
+		if err != nil {
+			repo.pb.Logger().Error(
+				"SetStocks - failed to find record from `stocks` - skip",
+				"error", err.Error(),
+				"ticker", stock.Ticker,
+			)
+			continue
 		}
-		return nil
-	})
 
-	if err != nil {
-		return err
+		recordUnique := records[0]
+		recordUnique.MarkAsNotNew()
+
+		newRecordData, err := stock.ToMap()
+		if err != nil {
+			repo.pb.Logger().Error(
+				"SetStocks - failed to ToMap stock - skip",
+				"error", err.Error(),
+				"ticker", stock.Ticker,
+			)
+			continue
+		}
+		recordUnique.Load(newRecordData)
+
+		if err = repo.pb.Dao().SaveRecord(recordUnique); err != nil {
+			repo.pb.Logger().Error(
+				"SetStocks - cannot write to `stocks` - skip",
+				"error", err.Error(),
+				"ticker", stock.Ticker,
+			)
+			continue
+		}
 	}
 
 	return nil
