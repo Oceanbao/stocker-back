@@ -21,21 +21,11 @@ type Application struct {
 	notifier infra.Notifier
 }
 
-func main() {
+func main() { //nolint:funlen //DELE
 	isDevMode := false
 	if os.Getenv("APP_ENV") == "dev" {
 		isDevMode = true
 	}
-
-	// var loggingLevel = new(slog.LevelVar)
-	// if isDevMode {
-	// 	loggingLevel.Set(slog.LevelDebug)
-	// }
-	// loggingOpt := &slog.HandlerOptions{
-	// 	Level: loggingLevel,
-	// }
-
-	// logger := slog.New(slog.NewJSONHandler(os.Stdout, loggingOpt))
 
 	pb := pocketbase.New()
 
@@ -70,6 +60,7 @@ func main() {
 
 	// ----------------- Route ----------------------
 	app.pb.OnBeforeServe().Add(func(e *core.ServeEvent) error {
+		app.pb.Logger().Info("Registering routes...")
 		// Global middleware.
 		// e.Router.Use(apis.RequireRecordAuth("user"))
 
@@ -101,7 +92,7 @@ func main() {
 	// ----------------- Cron ----------------------
 	app.pb.OnBeforeServe().Add(func(_ *core.ServeEvent) error {
 		if isDevMode {
-			app.pb.Logger().Info("running in dev mode, turning off CRONs")
+			app.pb.Logger().Warn("running in dev mode, turning off CRONs")
 			return nil
 		}
 
