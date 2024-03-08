@@ -45,10 +45,13 @@ func (repo *ScreenRepositoryPB) GetScreens() ([]screener.Screen, error) {
 		return []screener.Screen{}, err
 	}
 
-	screens := make([]screener.Screen, len(records))
+	screens := make([]screener.Screen, 0, len(records))
 	for idx := range records {
-		screens[idx].Ticker = records[idx].GetString("ticker")
-		screens[idx].Kdj = records[idx].GetFloat("kdj")
+		s := screener.Screen{
+			Ticker: records[idx].GetString("ticker"),
+			Kdj:    records[idx].GetFloat("kdj"),
+		}
+		screens = append(screens, s)
 	}
 
 	// Sort ascending.
@@ -79,7 +82,10 @@ func (repo *ScreenRepositoryPB) SetScreens(screens []screener.Screen) error {
 
 	err = repo.pb.Dao().RunInTransaction(func(txDao *daos.Dao) error {
 		for _, data := range screens {
-			recordData := convertScreenToRecord(data).ToMap()
+			recordData, err := data.ToMap()
+			if err != nil {
+				return err
+			}
 			record := models.NewRecord(collection)
 			record.Load(recordData)
 
@@ -97,11 +103,4 @@ func (repo *ScreenRepositoryPB) SetScreens(screens []screener.Screen) error {
 	}
 
 	return nil
-}
-
-func convertScreenToRecord(screen screener.Screen) RecordScreen {
-	return RecordScreen{
-		Ticker: screen.Ticker,
-		Kdj:    screen.Kdj,
-	}
 }

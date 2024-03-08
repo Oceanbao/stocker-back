@@ -21,7 +21,7 @@ type Application struct {
 	notifier infra.Notifier
 }
 
-func main() { //nolint:funlen //DELE
+func main() {
 	isDevMode := false
 	if os.Getenv("APP_ENV") == "dev" {
 		isDevMode = true

@@ -52,6 +52,7 @@ func (q *Query) GetRandomTickers(num int) ([]string, error) {
 	return lo.Samples(tickers, num), nil
 }
 
+// GetScreens queries screens data augmented with necessary meta.
 func (q *Query) GetScreens() ([]map[string]interface{}, error) {
 	screens, err := q.repoScreen.GetScreens()
 	if err != nil {
@@ -60,8 +61,9 @@ func (q *Query) GetScreens() ([]map[string]interface{}, error) {
 
 	var output []map[string]interface{}
 	for _, s := range screens {
+		// DELE: better shape
 		if s.Kdj <= 30 { //nolint:gomnd // ignore
-			m := make(map[string]interface{})
+			m := make(map[string]any)
 			m["kdj"] = s.Kdj
 
 			stock, err := q.repoStock.GetStockByTicker(s.Ticker)

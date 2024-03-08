@@ -112,7 +112,6 @@ func (c *Command) UpdateDailyScreen() error {
 		}
 
 		kdj := stock.ComputeKDJ(candles)
-
 		lastJ := kdj[len(kdj)-1].J
 
 		screens = append(screens, screener.Screen{
