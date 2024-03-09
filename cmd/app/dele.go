@@ -29,3 +29,11 @@ func (app *Application) updateDailyData(c echo.Context) error {
 	}()
 	return c.JSON(http.StatusOK, ResponseOk())
 }
+
+func (app *Application) deleDevHandler(c echo.Context) error {
+	_, err := app.query.GetStocksBySector("dele")
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, ResponseOk())
+}

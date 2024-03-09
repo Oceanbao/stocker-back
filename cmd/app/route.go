@@ -99,6 +99,18 @@ func (app *Application) trackingDeleteHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, ResponseOk())
 }
 
+// sectorReadHandler is controller handling retrieval of stocks by given sector.
+func (app *Application) sectorReadHandler(c echo.Context) error {
+	sector := c.PathParam("sector")
+
+	stocks, err := app.query.GetStocksBySector(sector)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, ResponseData(stocks))
+}
+
 // randomStocksHandler is controller handling retrieval of random stocks given number.
 func (app *Application) randomStocksHandler(c echo.Context) error {
 	numStr := c.PathParam("num")
