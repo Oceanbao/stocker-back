@@ -158,6 +158,26 @@ func (repo *StockRepositoryPB) GetStocks() ([]stock.Stock, error) {
 	return output, nil
 }
 
+func (repo *StockRepositoryPB) GetStocksBySector(sector string) ([]stock.Stock, error) {
+	var records []RecordStock
+
+	err := repo.pb.Dao().DB().
+		Select().
+		From("stocks").
+		Where(dbx.NewExp("sector = {:sector}", dbx.Params{"sector": sector})).
+		All(&records)
+	if err != nil {
+		return nil, err
+	}
+
+	output := make([]stock.Stock, 0, len(records))
+	for _, s := range records {
+		output = append(output, s.ToModel())
+	}
+
+	return output, nil
+}
+
 func (repo *StockRepositoryPB) GetDailyDataAll() (map[string][]stock.DailyData, error) {
 	var recordDailyData []RecordDailyData
 

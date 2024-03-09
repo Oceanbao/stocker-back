@@ -66,6 +66,7 @@ func main() {
 
 		gDele := e.Router.Group("/dele")
 		gDele.Use(apis.RequireRecordAuth("users"))
+		gDele.GET("/dev", app.deleDevHandler)
 		gDele.GET("/updatestocks", app.deleUpdateStocksHandler)
 		gDele.GET("/updatedaily", app.updateDailyData)
 		gDele.GET("/updatescreen", app.screenUpdateHandler)
@@ -83,6 +84,8 @@ func main() {
 		gTracking.DELETE("/:ticker", app.trackingDeleteHandler)
 
 		e.Router.GET("/screen", app.screenReadHandler, apis.RequireRecordAuth("users"))
+
+		e.Router.GET("/sector/:sector", app.sectorReadHandler, apis.RequireRecordAuth("users"))
 
 		e.Router.GET("/random/:num", app.randomStocksHandler, apis.RequireRecordAuth("users"))
 

@@ -110,3 +110,25 @@ func (q *Query) GetTrackings() ([]map[string]interface{}, error) {
 
 	return output, nil
 }
+
+func (q *Query) GetStocksBySector(sector string) ([]map[string]any, error) {
+	stocks, err := q.repoStock.GetStocksBySector(sector)
+	if err != nil {
+		return nil, err
+	}
+
+	var output []map[string]interface{}
+	for _, s := range stocks {
+		var m map[string]interface{}
+		b, err := json.Marshal(s)
+		if err != nil {
+			continue
+		}
+		if err := json.Unmarshal(b, &m); err != nil {
+			continue
+		}
+		output = append(output, m)
+	}
+
+	return output, nil
+}
