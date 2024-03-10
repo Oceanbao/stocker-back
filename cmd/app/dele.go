@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -35,5 +36,34 @@ func (app *Application) deleDevHandler(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	return c.JSON(http.StatusOK, ResponseOk())
+}
+
+func (app *Application) deleteStocksHandler(c echo.Context) error {
+	payload := struct {
+		Tickers []string `json:"tickers"`
+	}{
+		Tickers: nil,
+	}
+	err := json.NewDecoder(c.Request().Body).Decode(&payload)
+	if err != nil {
+		return c.JSON(http.StatusOK, ResponseErr(err.Error()))
+	}
+
+	if len(payload.Tickers) == 0 {
+		return c.JSON(http.StatusOK, ResponseErr("missing tickers"))
+	}
+
+	failedTickers := make([]string, 0)
+	for _, t := range payload.Tickers {
+		if err := app.command.DeleteStockByTicker(t); err != nil {
+			failedTickers = append(failedTickers, t)
+		}
+	}
+
+	if len(failedTickers) != 0 {
+		return c.JSON(http.StatusOK, ResponseErr(fmt.Sprintf("failed tickers: %v", failedTickers)))
+	}
+
 	return c.JSON(http.StatusOK, ResponseOk())
 }
