@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"encoding/json"
+	"slices"
 
 	"example.com/stocker-back/internal/infra"
 	"example.com/stocker-back/internal/screener"
@@ -59,27 +60,50 @@ func (q *Query) GetScreens() ([]map[string]interface{}, error) {
 		return nil, err
 	}
 
+	// DELE: better shape
+	trackings, err := q.repoTracking.GetTrackings()
+	if err != nil {
+		return nil, err
+	}
+
 	var output []map[string]interface{}
 	for _, s := range screens {
 		// DELE: better shape
-		if s.Kdj <= 30 { //nolint:gomnd // ignore
-			m := make(map[string]any)
-			m["kdj"] = s.Kdj
-
-			stock, err := q.repoStock.GetStockByTicker(s.Ticker)
-			if err != nil {
-				continue
-			}
-			m["stock"] = stock
-
-			dailyData, err := q.repoStock.GetDailyDataLastByTicker(s.Ticker)
-			if err != nil {
-				continue
-			}
-			m["daily"] = dailyData
-
-			output = append(output, m)
+		if s.Kdj > 30 { //nolint:gomnd // ignore
+			continue
 		}
+
+		var m map[string]interface{}
+
+		stock, err := q.repoStock.GetStockByTicker(s.Ticker)
+		if err != nil {
+			return nil, err
+		}
+		b, err := json.Marshal(stock)
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(b, &m); err != nil {
+			return nil, err
+		}
+		m["screenkdj"] = s.Kdj
+
+		isTracked := slices.ContainsFunc(trackings, func(t tracking.Tracking) bool {
+			return t.Ticker == stock.Ticker
+		})
+		if isTracked {
+			m["tracking"] = true
+		} else {
+			m["tracking"] = false
+		}
+
+		dailyData, err := q.repoStock.GetDailyDataLastByTicker(s.Ticker)
+		if err != nil {
+			continue
+		}
+		m["dailyvalue"] = dailyData.Value
+
+		output = append(output, m)
 	}
 
 	return output, nil
@@ -105,6 +129,9 @@ func (q *Query) GetTrackings() ([]map[string]interface{}, error) {
 		if err := json.Unmarshal(b, &m); err != nil {
 			continue
 		}
+
+		m["tracking"] = true
+
 		output = append(output, m)
 	}
 
@@ -113,6 +140,12 @@ func (q *Query) GetTrackings() ([]map[string]interface{}, error) {
 
 func (q *Query) GetStocksBySector(sector string) ([]map[string]any, error) {
 	stocks, err := q.repoStock.GetStocksBySector(sector)
+	if err != nil {
+		return nil, err
+	}
+
+	// DELE: better shape
+	trackings, err := q.repoTracking.GetTrackings()
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +160,16 @@ func (q *Query) GetStocksBySector(sector string) ([]map[string]any, error) {
 		if err := json.Unmarshal(b, &m); err != nil {
 			continue
 		}
+
+		isTracked := slices.ContainsFunc(trackings, func(t tracking.Tracking) bool {
+			return t.Ticker == s.Ticker
+		})
+		if isTracked {
+			m["tracking"] = true
+		} else {
+			m["tracking"] = false
+		}
+
 		output = append(output, m)
 	}
 
