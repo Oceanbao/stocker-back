@@ -67,6 +67,7 @@ func main() {
 		gDele := e.Router.Group("/dele")
 		gDele.Use(apis.RequireRecordAuth("users"))
 		gDele.GET("/dev", app.deleDevHandler)
+		gDele.POST("/deletestocks", app.deleteStocksHandler)
 		gDele.GET("/updatestocks", app.deleUpdateStocksHandler)
 		gDele.GET("/updatedaily", app.updateDailyData)
 		gDele.GET("/updatescreen", app.screenUpdateHandler)
