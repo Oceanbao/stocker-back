@@ -9,8 +9,12 @@ type Repository interface {
 	GetDailyDataLastByTicker(ticker string) (DailyData, error)
 	GetDailyDataLastAll() ([]DailyData, error)
 
-	SetStock(stock Stock) error
-	SetStocks(stocks []Stock) error
-	SetDailyData(dailydata []DailyData) error
+	CreateStock(stock Stock) error
+
+	UpdateStock(stock Stock) error
+	UpdateStocks(stocks []Stock) error
+
+	CreateDailyData(dailydata []DailyData) error
+
 	DeleteStockByTicker(ticker string) error
 }

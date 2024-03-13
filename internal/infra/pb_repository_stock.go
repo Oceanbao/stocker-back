@@ -245,11 +245,34 @@ func (repo *StockRepositoryPB) GetDailyDataLastAll() ([]stock.DailyData, error) 
 	return output, nil
 }
 
-func (repo *StockRepositoryPB) SetStock(stock stock.Stock) error {
+func (repo *StockRepositoryPB) CreateStock(stock stock.Stock) error {
+	collection, err := repo.pb.Dao().FindCollectionByNameOrId("stocks")
+	if err != nil {
+		return err
+	}
+
+	newRecordData, err := stock.ToMap()
+	if err != nil {
+		return err
+	}
+
+	record := models.NewRecord(collection)
+	record.Load(newRecordData)
+
+	err = repo.pb.Dao().SaveRecord(record)
+	if err != nil {
+		repo.pb.Logger().Error("CreateStock: cannot write to `stocks`", "error", err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func (repo *StockRepositoryPB) UpdateStock(stock stock.Stock) error {
 	expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": stock.Ticker})
 	records, err := repo.pb.Dao().FindRecordsByExpr("stocks", expr)
 	if err != nil {
-		repo.pb.Logger().Error("SetStock: fail to find record", "error", err.Error(), "ticker", stock.Ticker)
+		repo.pb.Logger().Error("UpdateStock: fail to find record", "error", err.Error(), "ticker", stock.Ticker)
 		return err
 	}
 
@@ -262,7 +285,7 @@ func (repo *StockRepositoryPB) SetStock(stock stock.Stock) error {
 
 	err = repo.pb.Dao().SaveRecord(recordUnique)
 	if err != nil {
-		repo.pb.Logger().Error("SetStock: cannot write to `stocks`", "error", err.Error())
+		repo.pb.Logger().Error("UpdateStock: cannot write to `stocks`", "error", err.Error())
 		return err
 	}
 
@@ -270,13 +293,13 @@ func (repo *StockRepositoryPB) SetStock(stock stock.Stock) error {
 }
 
 // SetStocks upsert pb databse with given stocks.
-func (repo *StockRepositoryPB) SetStocks(stocks []stock.Stock) error {
+func (repo *StockRepositoryPB) UpdateStocks(stocks []stock.Stock) error {
 	for _, stock := range stocks {
 		expr := dbx.NewExp("ticker = {:ticker}", dbx.Params{"ticker": stock.Ticker})
 		records, err := repo.pb.Dao().FindRecordsByExpr("stocks", expr)
 		if err != nil {
 			repo.pb.Logger().Error(
-				"SetStocks - failed to find record from `stocks` - skip",
+				"UpdateStocks - failed to find record from `stocks` - skip",
 				"error", err.Error(),
 				"ticker", stock.Ticker,
 			)
@@ -289,7 +312,7 @@ func (repo *StockRepositoryPB) SetStocks(stocks []stock.Stock) error {
 		newRecordData, err := stock.ToMap()
 		if err != nil {
 			repo.pb.Logger().Error(
-				"SetStocks - failed to ToMap stock - skip",
+				"UpdateStocks - failed to ToMap stock - skip",
 				"error", err.Error(),
 				"ticker", stock.Ticker,
 			)
@@ -299,7 +322,7 @@ func (repo *StockRepositoryPB) SetStocks(stocks []stock.Stock) error {
 
 		if err = repo.pb.Dao().SaveRecord(recordUnique); err != nil {
 			repo.pb.Logger().Error(
-				"SetStocks - cannot write to `stocks` - skip",
+				"UpdateStocks - cannot write to `stocks` - skip",
 				"error", err.Error(),
 				"ticker", stock.Ticker,
 			)
@@ -310,7 +333,7 @@ func (repo *StockRepositoryPB) SetStocks(stocks []stock.Stock) error {
 	return nil
 }
 
-func (repo *StockRepositoryPB) SetDailyData(dailyData []stock.DailyData) error {
+func (repo *StockRepositoryPB) CreateDailyData(dailyData []stock.DailyData) error {
 	collection, err := repo.pb.Dao().FindCollectionByNameOrId("daily")
 	if err != nil {
 		return err
