@@ -147,6 +147,29 @@ type RawRankCrawl struct {
 	} `json:"data"`
 }
 
+// ValidateStockByTicker checks from API if ticker exists.
+func ValidateStockByTicker(ticker string) (map[string]any, error) {
+	rawStock, err := crawlStock(ticker)
+	if err != nil {
+		return nil, err
+	}
+
+	if rawStock.Data.Name == "" {
+		return make(map[string]any), nil
+	}
+
+	var m map[string]any
+	b, err := json.Marshal(rawStock)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
 // CrawlStocks concurrently crawls and produces stock.Stock given tickers.
 func (s *APIServiceEastmoney) CrawlStock(ticker string) (stock.Stock, error) {
 	rawStock, err := crawlStock(ticker)

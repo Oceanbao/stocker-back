@@ -90,6 +90,8 @@ func main() {
 
 		e.Router.GET("/random/:num", app.randomStocksHandler, apis.RequireRecordAuth("users"))
 
+		e.Router.GET("/searchticker", app.searchTickerByAPI, apis.RequireRecordAuth("users"))
+
 		return nil
 	})
 

@@ -52,7 +52,7 @@ func (c *Command) UpdateStocks() error {
 			continue
 		}
 
-		err = c.repoStock.SetStock(stockNew)
+		err = c.repoStock.UpdateStock(stockNew)
 		if err != nil {
 			c.logger.Errorf("SetStock", "error", err.Error(), "ticker", ticker)
 			failedTickers = append(failedTickers, ticker)
@@ -80,7 +80,7 @@ func (c *Command) UpdateDailyData() error {
 	apiServiceEastmoney := apieastmoney.NewAPIServiceEastmoney(c.logger)
 	dailyDataNew := apiServiceEastmoney.CrawlDailyToDate(dailyDataToCrawl)
 
-	if err = c.repoStock.SetDailyData(dailyDataNew); err != nil {
+	if err = c.repoStock.CreateDailyData(dailyDataNew); err != nil {
 		c.logger.Errorf("SetDailyData()", "error", err.Error())
 		c.notifier.Sendf("SetDailyData()", err.Error())
 		return err
@@ -137,7 +137,7 @@ func (c *Command) CreateStock(ticker string) error {
 	}
 
 	// Write db
-	if err := c.repoStock.SetStock(stockNew); err != nil {
+	if err := c.repoStock.CreateStock(stockNew); err != nil {
 		return err
 	}
 
@@ -154,14 +154,14 @@ func (c *Command) CreateStockAndDailyData(ticker string) error {
 		return err
 	}
 	// Write db
-	if err := c.repoStock.SetStock(stockNew); err != nil {
+	if err := c.repoStock.CreateStock(stockNew); err != nil {
 		return err
 	}
 
 	// Crawl ticker dailydata.
 	dailyData := apiServiceEastmoney.CrawlDailyOne(ticker, 200) //nolint:gomnd // ignore
 	// Write db
-	if err := c.repoStock.SetDailyData(dailyData); err != nil {
+	if err := c.repoStock.CreateDailyData(dailyData); err != nil {
 		return err
 	}
 

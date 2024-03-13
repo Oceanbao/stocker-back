@@ -1,10 +1,11 @@
 package main
 
 import (
+	apieastmoney "example.com/stocker-back/internal/infra/api_eastmoney"
+	"github.com/labstack/echo/v5"
+
 	"net/http"
 	"strconv"
-
-	"github.com/labstack/echo/v5"
 )
 
 // stockSearchHandler is controller handling stock search of single ticker.
@@ -122,4 +123,22 @@ func (app *Application) randomStocksHandler(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, ResponseData(tickers))
+}
+
+func (app *Application) searchTickerByAPI(c echo.Context) error {
+	ticker := c.QueryParam("ticker")
+	if ticker == "" {
+		return c.JSON(http.StatusOK, ResponseErr("required param missing"))
+	}
+
+	data, err := apieastmoney.ValidateStockByTicker(ticker)
+	if err != nil {
+		return c.JSON(http.StatusOK, ResponseErr("something wrong in crawling"))
+	}
+
+	if data["data"] == nil {
+		return c.JSON(http.StatusOK, ResponseErr("not found"))
+	}
+
+	return c.JSON(http.StatusOK, ResponseData(data))
 }
